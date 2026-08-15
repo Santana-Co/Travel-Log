@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A simple work travel log." />
+    <title>Travel Log</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">WORK TRAVEL</p>
+        <h1>Travel Log</h1>
+        <p class="intro">Track work trips, confirm routes, and export your report.</p>
+      </div>
+      <button id="new-trip-button" class="button primary">+ Add trip</button>
+    </header>
+
+    <main>
+      <section class="summary" aria-label="Travel summary">
+        <article><span>Total trips</span><strong id="trip-count">0</strong></article>
+        <article><span>Total distance</span><strong id="total-distance">0 km</strong></article>
+        <article><span>This month</span><strong id="month-distance">0 km</strong></article>
+      </section>
+
+      <section class="toolbar" aria-label="Trip controls">
+        <label class="search"><span class="sr-only">Search trips</span><input id="search" type="search" placeholder="Search addresses or notes" /></label>
+        <button id="export-button" class="button secondary">Export CSV</button>
+      </section>
+
+      <section class="trips-section">
+        <div class="section-heading"><h2>Past trips</h2><span id="trip-label">No trips yet</span></div>
+        <div id="empty-state" class="empty-state">
+          <h3>Your travel log starts here</h3>
+          <p>Add your first work trip to begin tracking distance and routes.</p>
+          <button id="empty-add-button" class="button primary">Add first trip</button>
+        </div>
+        <div id="trip-list" class="trip-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <dialog id="trip-dialog">
+      <form id="trip-form" method="dialog">
+        <div class="dialog-heading">
+          <div><p class="eyebrow">TRIP DETAILS</p><h2 id="form-title">Add a trip</h2></div>
+          <button type="button" id="close-button" class="icon-button" aria-label="Close">×</button>
+        </div>
+        <input id="trip-id" type="hidden" />
+        <div class="form-grid">
+          <label>Trip date<input id="trip-date" type="date" required /></label>
+          <label>One-way distance (km)<input id="distance" type="number" min="0" step="0.1" placeholder="e.g. 24.5" required /></label>
+          <label class="full-width">Starting address<input id="start-address" type="text" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
+          <label class="full-width">Ending address<input id="end-address" type="text" placeholder="e.g. Client office, Gold Coast" required /></label>
+          <label class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
+          <label class="full-width">Notes (optional)<textarea id="notes" rows="3" placeholder="Client meeting, site visit, project name…"></textarea></label>
+        </div>
+        <p class="route-tip">Use the route button after saving to check the distance in Google Maps, then update this trip if needed.</p>
+        <div class="dialog-actions"><button type="button" id="cancel-button" class="button secondary">Cancel</button><button class="button primary" type="submit">Save trip</button></div>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
