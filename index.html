@@ -14,7 +14,7 @@
         <h1>Travel Log</h1>
         <p class="intro">Track work trips, confirm routes, and export your report.</p>
       </div>
-      <button id="new-trip-button" class="button primary">+ Add trip</button>
+      <div class="header-actions"><button id="settings-button" class="button secondary">Distance settings</button><button id="new-trip-button" class="button primary">+ Add trip</button></div>
     </header>
 
     <main>
@@ -49,14 +49,23 @@
         <input id="trip-id" type="hidden" />
         <div class="form-grid">
           <label>Trip date<input id="trip-date" type="date" required /></label>
-          <label>One-way distance (km)<input id="distance" type="number" min="0" step="0.1" placeholder="e.g. 24.5" required /></label>
+          <label>One-way distance (km)<span class="distance-input"><input id="distance" type="number" min="0" step="0.1" placeholder="e.g. 24.5" required /><button type="button" id="calculate-distance" class="button secondary">Calculate</button></span></label>
           <label class="full-width">Starting address<input id="start-address" type="text" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
           <label class="full-width">Ending address<input id="end-address" type="text" placeholder="e.g. Client office, Gold Coast" required /></label>
           <label class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
           <label class="full-width">Notes (optional)<textarea id="notes" rows="3" placeholder="Client meeting, site visit, project name…"></textarea></label>
         </div>
-        <p class="route-tip">Use the route button after saving to check the distance in Google Maps, then update this trip if needed.</p>
+        <p id="route-tip" class="route-tip">Add an OpenRouteService key in Distance settings to calculate driving distance automatically.</p>
         <div class="dialog-actions"><button type="button" id="cancel-button" class="button secondary">Cancel</button><button class="button primary" type="submit">Save trip</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="settings-dialog">
+      <form id="settings-form" method="dialog">
+        <div class="dialog-heading"><div><p class="eyebrow">DISTANCE SETTINGS</p><h2>OpenRouteService</h2></div><button type="button" id="close-settings-button" class="icon-button" aria-label="Close">×</button></div>
+        <label>Free API key<input id="ors-key" type="password" autocomplete="off" placeholder="Paste your OpenRouteService API key" /></label>
+        <p class="route-tip">Create a free key at <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener">openrouteservice.org</a>. It is stored only in this browser and is never saved to GitHub.</p>
+        <div class="dialog-actions"><button type="button" id="clear-key-button" class="button secondary">Remove key</button><button class="button primary" type="submit">Save key</button></div>
       </form>
     </dialog>
 

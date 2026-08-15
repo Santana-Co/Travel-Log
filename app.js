@@ -1,6 +1,8 @@
 const storageKey = "travel-log-trips";
+const orsKeyStorageKey = "travel-log-openrouteservice-key";
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#trip-dialog");
+const settingsDialog = $("#settings-dialog");
 const form = $("#trip-form");
 
 let trips = JSON.parse(localStorage.getItem(storageKey) || "[]");
@@ -50,12 +52,43 @@ function exportCsv() {
   const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "travel-log-report.csv"; link.click(); URL.revokeObjectURL(link.href);
 }
 
+async function geocode(address, apiKey) {
+  const response = await fetch(`https://api.openrouteservice.org/geocode/search?text=${encodeURIComponent(address)}&size=1`, { headers: { Authorization: apiKey } });
+  const data = await response.json();
+  if (!response.ok || !data.features?.length) throw new Error(`Address not found: ${address}`);
+  return data.features[0].geometry.coordinates;
+}
+
+async function calculateDistance() {
+  const apiKey = localStorage.getItem(orsKeyStorageKey);
+  const start = $("#start-address").value.trim();
+  const end = $("#end-address").value.trim();
+  if (!apiKey) { settingsDialog.showModal(); return; }
+  if (!start || !end) { alert("Enter both addresses first."); return; }
+  const button = $("#calculate-distance");
+  button.disabled = true; button.textContent = "Calculating…";
+  try {
+    const [startPoint, endPoint] = await Promise.all([geocode(start, apiKey), geocode(end, apiKey)]);
+    const response = await fetch("https://api.openrouteservice.org/v2/directions/driving-car", { method: "POST", headers: { Authorization: apiKey, "Content-Type": "application/json" }, body: JSON.stringify({ coordinates: [startPoint, endPoint] }) });
+    const data = await response.json();
+    if (!response.ok || !data.routes?.[0]) throw new Error(data.error?.message || "Could not calculate this route.");
+    $("#distance").value = (data.routes[0].summary.distance / 1000).toFixed(1);
+    $("#route-tip").textContent = "Distance calculated using OpenRouteService road data. Review it before saving.";
+  } catch (error) { alert(error.message || "Distance lookup failed. Check your key and addresses, then try again."); }
+  finally { button.disabled = false; button.textContent = "Calculate"; }
+}
+
 $("#new-trip-button").addEventListener("click", () => openForm());
+$("#settings-button").addEventListener("click", () => { $("#ors-key").value = localStorage.getItem(orsKeyStorageKey) || ""; settingsDialog.showModal(); });
 $("#empty-add-button").addEventListener("click", () => openForm());
 $("#close-button").addEventListener("click", () => dialog.close());
 $("#cancel-button").addEventListener("click", () => dialog.close());
 $("#search").addEventListener("input", render);
 $("#export-button").addEventListener("click", exportCsv);
+$("#calculate-distance").addEventListener("click", calculateDistance);
+$("#close-settings-button").addEventListener("click", () => settingsDialog.close());
+$("#clear-key-button").addEventListener("click", () => { localStorage.removeItem(orsKeyStorageKey); $("#ors-key").value = ""; settingsDialog.close(); });
+$("#settings-form").addEventListener("submit", (event) => { event.preventDefault(); const key = $("#ors-key").value.trim(); if (key) localStorage.setItem(orsKeyStorageKey, key); else localStorage.removeItem(orsKeyStorageKey); settingsDialog.close(); });
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   const id = $("#trip-id").value;
