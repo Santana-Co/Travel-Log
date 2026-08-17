@@ -14,10 +14,33 @@
         <h1>Travel Log</h1>
         <p class="intro">Track work trips, confirm routes, and export your report.</p>
       </div>
-      <button id="new-trip-button" class="button primary">+ Add trip</button>
+      <div id="account-actions" class="account-actions" hidden>
+        <span id="account-name"></span>
+        <button id="sign-out-button" class="button secondary" type="button">Sign out</button>
+        <button id="new-trip-button" class="button primary" type="button">+ Add trip</button>
+      </div>
     </header>
 
-    <main>
+    <main id="auth-view" class="auth-view">
+      <section class="auth-card" aria-labelledby="auth-title">
+        <p class="eyebrow">YOUR PRIVATE TRAVEL LOG</p>
+        <h2 id="auth-title">Sign in</h2>
+        <p id="auth-intro" class="auth-intro">Sign in to see trips saved to your profile.</p>
+        <form id="auth-form">
+          <label id="full-name-field" hidden>Full name<input id="full-name" type="text" autocomplete="name" /></label>
+          <label>Email address<input id="email" type="email" autocomplete="email" required /></label>
+          <label>Password<input id="password" type="password" autocomplete="current-password" minlength="6" required /></label>
+          <button id="auth-submit" class="button primary" type="submit">Sign in</button>
+        </form>
+        <p id="auth-message" class="status-message" role="status"></p>
+        <div class="auth-links">
+          <button id="toggle-auth-mode" class="text-button" type="button">Create an account</button>
+          <button id="forgot-password" class="text-button" type="button">Forgot password?</button>
+        </div>
+      </section>
+    </main>
+
+    <main id="app-view" hidden>
       <section class="summary" aria-label="Travel summary">
         <article><span>Total trips</span><strong id="trip-count">0</strong></article>
         <article><span>Total distance</span><strong id="total-distance">0 km</strong></article>
@@ -61,6 +84,7 @@
       </form>
     </dialog>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
   </body>
 </html>
