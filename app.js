@@ -14,7 +14,7 @@ function escapeHtml(value) { const node = document.createElement("span"); node.t
 
 function render() {
   const query = $("#search").value.toLowerCase().trim();
-  const matchingTrips = trips.filter((trip) => `${trip.start} ${trip.end} ${trip.notes}`.toLowerCase().includes(query));
+  const matchingTrips = trips.filter((trip) => `${trip.start} ${(trip.stops || []).join(" ")} ${trip.end} ${trip.notes}`.toLowerCase().includes(query));
   const total = trips.reduce((sum, trip) => sum + totalDistance(trip), 0);
   const today = new Date();
   const monthTotal = trips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
@@ -24,9 +24,28 @@ function render() {
   $("#trip-label").textContent = trips.length === 1 ? "1 trip" : `${trips.length} trips`;
   $("#empty-state").hidden = trips.length > 0;
   $("#trip-list").innerHTML = matchingTrips.map((trip) => {
-    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}&travelmode=driving`;
-    return `<article class="trip"><div class="trip-date">${displayDate(trip.date)}</div><div><div class="route">${escapeHtml(trip.start)} <span>to ${escapeHtml(trip.end)}</span></div><p class="trip-details">${formatKm(totalDistance(trip))}${trip.roundTrip ? " · round trip" : " · one way"}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener">Route</a><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
+    const stops = trip.stops || [];
+    const waypoints = stops.length ? `&waypoints=${encodeURIComponent(stops.join("|"))}` : "";
+    const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}${waypoints}&travelmode=driving`;
+    return `<article class="trip"><div class="trip-date">${displayDate(trip.date)}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div><p class="trip-details">${formatKm(totalDistance(trip))}${trip.roundTrip ? " · round trip" : " · one way"}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener">Route</a><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
   }).join("");
+}
+
+function addStop(value = "") {
+  const row = document.createElement("div");
+  row.className = "stop-row";
+  const input = document.createElement("input");
+  input.className = "stop-address";
+  input.type = "text";
+  input.placeholder = "Stop address";
+  input.value = value;
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "text-button";
+  remove.textContent = "Remove";
+  remove.addEventListener("click", () => row.remove());
+  row.append(input, remove);
+  $("#stops-list").append(row);
 }
 
 function openForm(trip) {
@@ -36,6 +55,8 @@ function openForm(trip) {
   $("#trip-date").value = trip?.date || new Date().toISOString().slice(0, 10);
   $("#distance").value = trip?.distance || "";
   $("#start-address").value = trip?.start || "";
+  $("#stops-list").replaceChildren();
+  (trip?.stops || []).forEach(addStop);
   $("#end-address").value = trip?.end || "";
   $("#round-trip").checked = trip?.roundTrip || false;
   $("#notes").value = trip?.notes || "";
@@ -45,8 +66,8 @@ function openForm(trip) {
 function csvCell(value) { return `"${String(value).replaceAll('"', '""')}"`; }
 function exportCsv() {
   if (!trips.length) return alert("Add at least one trip before exporting.");
-  const header = ["Date", "Start address", "End address", "One-way distance (km)", "Round trip", "Total distance (km)", "Notes"];
-  const rows = trips.map((trip) => [trip.date, trip.start, trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", totalDistance(trip), trip.notes]);
+  const header = ["Date", "Start address", "Stops", "End address", "One-way distance (km)", "Round trip", "Total distance (km)", "Notes"];
+  const rows = trips.map((trip) => [trip.date, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", totalDistance(trip), trip.notes]);
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
   const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "travel-log-report.csv"; link.click(); URL.revokeObjectURL(link.href);
 }
@@ -54,11 +75,12 @@ function exportCsv() {
 async function calculateDistance() {
   const start = $("#start-address").value.trim();
   const end = $("#end-address").value.trim();
+  const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
   if (!start || !end) { alert("Enter both addresses first."); return; }
   const button = $("#calculate-distance");
   button.disabled = true; button.textContent = "Calculating…";
   try {
-    const response = await fetch(distanceApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start, end }) });
+    const response = await fetch(distanceApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start, stops, end }) });
     const data = await response.json();
     if (!response.ok || typeof data.distanceKm !== "number") throw new Error(data.error || "Could not calculate this route.");
     $("#distance").value = data.distanceKm.toFixed(1);
@@ -74,10 +96,12 @@ $("#cancel-button").addEventListener("click", () => dialog.close());
 $("#search").addEventListener("input", render);
 $("#export-button").addEventListener("click", exportCsv);
 $("#calculate-distance").addEventListener("click", calculateDistance);
+$("#add-stop-button").addEventListener("click", () => addStop());
 form.addEventListener("submit", (event) => {
   event.preventDefault();
   const id = $("#trip-id").value;
-  const trip = { id: id || crypto.randomUUID(), date: $("#trip-date").value, distance: $("#distance").value, start: $("#start-address").value.trim(), end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
+  const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
+  const trip = { id: id || crypto.randomUUID(), date: $("#trip-date").value, distance: $("#distance").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
   trips = id ? trips.map((item) => item.id === id ? trip : item) : [trip, ...trips];
   saveTrips(); dialog.close(); render();
 });

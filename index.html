@@ -51,6 +51,7 @@
           <label>Trip date<input id="trip-date" type="date" required /></label>
           <label>One-way distance (km)<span class="distance-input"><input id="distance" type="number" min="0" step="0.1" placeholder="e.g. 24.5" required /><button type="button" id="calculate-distance" class="button secondary">Calculate</button></span></label>
           <label class="full-width">Starting address<input id="start-address" type="text" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
+          <div class="full-width stops-field"><div class="stops-heading"><span>Stops on the way (optional)</span><button type="button" id="add-stop-button" class="text-button">+ Add stop</button></div><div id="stops-list" class="stops-list"></div></div>
           <label class="full-width">Ending address<input id="end-address" type="text" placeholder="e.g. Client office, Gold Coast" required /></label>
           <label class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
           <label class="full-width">Notes (optional)<textarea id="notes" rows="3" placeholder="Client meeting, site visit, project name…"></textarea></label>
