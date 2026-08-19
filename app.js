@@ -81,8 +81,8 @@ function render() {
   const total = matchingTrips.reduce((sum, trip) => sum + totalDistance(trip), 0);
   const today = new Date();
   const monthTotal = matchingTrips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
-  const claims = claimSummary(matchingTrips);
   const recordingMode = activeRecordingMode();
+  const claims = claimSummary(matchingTrips, recordingMode);
   $("#trip-count").textContent = matchingTrips.length;
   $("#total-distance").textContent = formatKm(total);
   $("#month-distance").textContent = formatKm(monthTotal);
@@ -106,10 +106,12 @@ function render() {
     const waypoints = stops.length ? `&waypoints=${encodeURIComponent(stops.join("|"))}` : "";
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}${waypoints}&travelmode=driving`;
     const workDetails = [trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration].filter(Boolean).map(escapeHtml).join(" · ");
-    const methodLabel = { record_only: "record only", employer: "employer reimbursement", ato_cents: `ATO ${atoIncomeYear(trip.date)} cents/km`, ato_logbook: "ATO logbook" }[trip.claimMethod] || "record only";
+    const displayedMethod = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
+    const displayedClaim = claimAmount(trip, recordingMode);
+    const methodLabel = { record_only: "record only", employer: "employer reimbursement", ato_cents: `ATO ${atoIncomeYear(trip.date)} cents/km`, ato_logbook: "ATO logbook" }[displayedMethod] || "record only";
     const odometer = trip.odometerStart !== "" && trip.odometerEnd !== "" ? ` · odometer ${escapeHtml(trip.odometerStart)}–${escapeHtml(trip.odometerEnd)}` : "";
     const dates = trip.endDate && trip.endDate !== trip.date ? `${displayDate(trip.date)} – ${displayDate(trip.endDate)}` : displayDate(trip.date);
-    return `<article class="trip"><div class="trip-date">${dates}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div>${workDetails ? `<p class="trip-details">${workDetails}</p>` : ""}<p class="trip-details">${formatKm(totalDistance(trip))}${odometer} · ${methodLabel}${claimAmount(trip) ? ` · ${formatMoney(claimAmount(trip))} estimate` : ""}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Route</a><button class="text-button" data-duplicate="${trip.id}">Duplicate</button><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
+    return `<article class="trip"><div class="trip-date">${dates}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div>${workDetails ? `<p class="trip-details">${workDetails}</p>` : ""}<p class="trip-details">${formatKm(totalDistance(trip))}${odometer} · ${methodLabel}${displayedClaim ? ` · ${formatMoney(displayedClaim)} estimate` : ""}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Route</a><button class="text-button" data-duplicate="${trip.id}">Duplicate</button><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
   }).join("") || (trips.length ? `<div class="empty-state"><h3>No matching trips</h3><p>Clear or change the filters to see more records.</p></div>` : "");
 }
 
@@ -307,7 +309,11 @@ function exportCsv() {
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
   const header = ["Journey starts", "Journey ends", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
-  const rows = reportTrips.map((trip) => [trip.date, trip.endDate || trip.date, trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, trip.claimMethod, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), trip.claimMethod === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip).toFixed(2), trip.notes]);
+  const recordingMode = activeRecordingMode();
+  const rows = reportTrips.map((trip) => {
+    const method = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
+    return [trip.date, trip.endDate || trip.date, trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, method, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), method === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip, recordingMode).toFixed(2), trip.notes];
+  });
   const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
   downloadBlob("travel-log-report.csv", new Blob([csv], { type: "text/csv;charset=utf-8" }));
 }
@@ -317,7 +323,8 @@ function openPrintableReport() {
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
-  const payload = { generatedAt: new Date().toISOString(), recordingMode: activeRecordingMode(), user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, logbookPeriods, trips: reportTrips, claimSummary: claimSummary(reportTrips) };
+  const recordingMode = activeRecordingMode();
+  const payload = { generatedAt: new Date().toISOString(), recordingMode, user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, logbookPeriods, trips: reportTrips, claimSummary: claimSummary(reportTrips, recordingMode) };
   sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
   const reportWindow = window.open("report.html", "_blank");
   if (!reportWindow) { sessionStorage.removeItem("travel-log-print-report"); alert("Allow pop-ups for Travel Log, then try Print / Save PDF again."); }

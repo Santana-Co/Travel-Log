@@ -17,7 +17,7 @@ if (!payloadText) {
     const trips = Array.isArray(report.trips) ? report.trips : [];
     const recordingMode = normalizeRecordingMode(report.recordingMode);
     const distances = trips.reduce((sum, trip) => sum + totalDistance(trip), 0);
-    const claims = claimSummary(trips);
+    const claims = claimSummary(trips, recordingMode);
     const dates = trips.map((trip) => trip.date).sort();
     const period = report.filters?.from || report.filters?.to ? `${report.filters.from ? formatDate(report.filters.from) : "Beginning"} – ${report.filters.to ? formatDate(report.filters.to) : "Present"}` : `${formatDate(dates[0])} – ${formatDate(dates.at(-1))}`;
     $("#report-owner").textContent = [report.user?.name, report.user?.email].filter(Boolean).join(" · ");
@@ -46,10 +46,12 @@ if (!payloadText) {
       const work = [trip.purpose, trip.clientProject].filter(Boolean).join(" · ") || "—";
       const vehicle = [trip.vehicle, trip.vehicleRegistration].filter(Boolean).join(" · ") || "—";
       const odometer = trip.odometerStart !== "" && trip.odometerStart !== null && trip.odometerStart !== undefined ? `${trip.odometerStart}–${trip.odometerEnd}` : "—";
-      const rate = trip.claimMethod === "ato_cents" ? atoRateForDate(trip.date) : trip.rateCents;
+      const displayedMethod = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
+      const rate = displayedMethod === "ato_cents" ? atoRateForDate(trip.date) : trip.rateCents;
       const journeyDates = trip.endDate && trip.endDate !== trip.date ? `${formatDate(trip.date)} – ${formatDate(trip.endDate)}` : formatDate(trip.date);
-      const method = { record_only: "General record", employer: "Employer reimbursement", ato_cents: "ATO cents/km", ato_logbook: "ATO logbook" }[trip.claimMethod] || "General record";
-      return `<tr><td>${escapeHtml(journeyDates)}</td><td>${escapeHtml(work)}</td><td>${escapeHtml(route)}</td><td>${escapeHtml(vehicle)}</td><td>${escapeHtml(odometer)}</td><td>${escapeHtml(formatKm(totalDistance(trip)))}</td><td>${escapeHtml(method)}</td><td>${rate ? `${escapeHtml(rate)}¢/km` : "—"}</td><td>${claimAmount(trip) ? escapeHtml(formatMoney(claimAmount(trip))) : "—"}</td></tr>`;
+      const method = { record_only: "General record", employer: "Employer reimbursement", ato_cents: "ATO cents/km", ato_logbook: "ATO logbook" }[displayedMethod] || "General record";
+      const amount = claimAmount(trip, recordingMode);
+      return `<tr><td>${escapeHtml(journeyDates)}</td><td>${escapeHtml(work)}</td><td>${escapeHtml(route)}</td><td>${escapeHtml(vehicle)}</td><td>${escapeHtml(odometer)}</td><td>${escapeHtml(formatKm(totalDistance(trip)))}</td><td>${escapeHtml(method)}</td><td>${rate ? `${escapeHtml(rate)}¢/km` : "—"}</td><td>${amount ? escapeHtml(formatMoney(amount)) : "—"}</td></tr>`;
     }).join("");
   } catch {
     $("#report-content").hidden = true;

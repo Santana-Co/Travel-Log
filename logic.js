@@ -25,20 +25,26 @@
     if (year === "2025–26" || year === "2024–25") return 88;
     return null;
   }
-  function claimAmount(trip) {
-    if (trip.claimMethod === "ato_logbook" || trip.claimMethod === "record_only") return 0;
-    const rate = trip.claimMethod === "ato_cents" ? atoRateForDate(trip.date) : number(trip.rateCents);
+  function claimMethodForMode(trip, recordingMode) {
+    const selected = normalizeRecordingMode(recordingMode);
+    if (selected === "ato_cents") return "ato_cents";
+    return trip.claimMethod || (number(trip.rateCents) > 0 ? "employer" : "record_only");
+  }
+  function claimAmount(trip, recordingMode) {
+    const method = claimMethodForMode(trip, recordingMode);
+    if (method === "ato_logbook" || method === "record_only") return 0;
+    const rate = method === "ato_cents" ? atoRateForDate(trip.date) : number(trip.rateCents);
     return totalDistance(trip) * number(rate) / 100;
   }
-  function claimSummary(trips) {
+  function claimSummary(trips, recordingMode) {
     let employer = 0;
     let atoCents = 0;
     let cappedKilometres = 0;
     const groups = new Map();
     trips.forEach((trip) => {
-      const method = trip.claimMethod || (number(trip.rateCents) > 0 ? "employer" : "record_only");
-      if (method === "employer") employer += claimAmount(trip);
-      if (trip.claimMethod !== "ato_cents") return;
+      const method = claimMethodForMode(trip, recordingMode);
+      if (method === "employer") employer += claimAmount(trip, recordingMode);
+      if (method !== "ato_cents") return;
       const key = `${atoIncomeYear(trip.date)}|${String(trip.vehicleRegistration || "unassigned").toUpperCase()}`;
       const group = groups.get(key) || { kilometres: 0, rate: atoRateForDate(trip.date) || 0 };
       group.kilometres += totalDistance(trip);

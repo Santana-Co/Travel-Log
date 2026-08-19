@@ -18,6 +18,15 @@ test("applies current ATO rates, odometer distance, and the annual 5,000 km cap"
   assert.deepEqual(claimSummary(atoTrips), { atoCents: 4550, cappedKilometres: 500, employer: 0, total: 4550 });
 });
 
+test("uses the selected ATO cents mode for trips created under an earlier workflow", () => {
+  const earlierTrips = [
+    { ...validTrip, roundTrip: false, distance: 100, claimMethod: "record_only", vehicleRegistration: "123ABC", date: "2026-08-20" },
+    { ...validTrip, roundTrip: false, distance: 50, claimMethod: "employer", vehicleRegistration: "123ABC", date: "2026-08-21" },
+  ];
+  assert.equal(claimAmount(earlierTrips[0], "ato_cents"), 91);
+  assert.deepEqual(claimSummary(earlierTrips, "ato_cents"), { atoCents: 136.5, cappedKilometres: 0, employer: 0, total: 136.5 });
+});
+
 test("calculates and validates a 12-week ATO logbook period", () => {
   const period = { vehicleRegistration: "123ABC", vehicleDescription: "Toyota Hilux", startDate: "2026-07-01", endDate: "2026-09-22", openingOdometer: 10000, closingOdometer: 12000 };
   assert.equal(validateLogbookPeriod(period), "");
