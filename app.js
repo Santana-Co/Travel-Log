@@ -2,7 +2,7 @@ const storageKey = "travel-log-trips";
 const supabaseUrl = "https://caqgnnlgtomcmkpafvoc.supabase.co";
 const supabasePublishableKey = "sb_publishable_QH3nXDysJyTfg61qv_h98w_-SergW2w";
 const distanceApiUrl = "https://travel-log-distance-api.jfsantana0691.workers.dev/distance";
-const privacyVersion = "2026-08-19-reporting";
+const privacyVersion = "2026-08-20-ato-logbook";
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#trip-dialog");
@@ -10,10 +10,11 @@ const form = $("#trip-form");
 const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
-const { claimAmount, csvCell, filterError, filterTrips: filterTripRecords, totalDistance, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookSummary, totalDistance, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
+let logbookPeriods = [];
 let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
@@ -36,11 +37,15 @@ function passwordError(password) {
 }
 
 function fromDatabase(row) {
-  return { id: row.id, date: row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", rateCents: Number(row.rate_cents || 0), notes: row.notes || "" };
+  return { id: row.id, date: row.trip_date, endDate: row.trip_end_date || row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", vehicleRegistration: row.vehicle_registration || "", claimMethod: row.claim_method || (Number(row.rate_cents) > 0 ? "employer" : "record_only"), rateCents: Number(row.rate_cents || 0), odometerStart: row.odometer_start === null || row.odometer_start === undefined ? "" : Number(row.odometer_start), odometerEnd: row.odometer_end === null || row.odometer_end === undefined ? "" : Number(row.odometer_end), notes: row.notes || "" };
 }
 
 function toDatabase(trip) {
-  return { id: trip.id, user_id: currentUser.id, trip_date: trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, rate_cents: Number(trip.rateCents || 0), notes: trip.notes };
+  return { id: trip.id, user_id: currentUser.id, trip_date: trip.date, trip_end_date: trip.endDate || trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, vehicle_registration: trip.vehicleRegistration || null, claim_method: trip.claimMethod || (Number(trip.rateCents) > 0 ? "employer" : "record_only"), rate_cents: Number(trip.rateCents || 0), odometer_start: trip.odometerStart === "" || trip.odometerStart === undefined ? null : Number(trip.odometerStart), odometer_end: trip.odometerEnd === "" || trip.odometerEnd === undefined ? null : Number(trip.odometerEnd), notes: trip.notes };
+}
+
+function fromLogbookDatabase(row) {
+  return { id: row.id, vehicleRegistration: row.vehicle_registration, vehicleDescription: row.vehicle_description, engineCapacity: row.engine_capacity || "", startDate: row.start_date, endDate: row.end_date, openingOdometer: Number(row.opening_odometer), closingOdometer: Number(row.closing_odometer), incomeYearOpeningOdometer: row.income_year_opening_odometer === null ? "" : Number(row.income_year_opening_odometer), incomeYearClosingOdometer: row.income_year_closing_odometer === null ? "" : Number(row.income_year_closing_odometer) };
 }
 
 function filteredTrips() {
@@ -54,19 +59,23 @@ function render() {
   const total = matchingTrips.reduce((sum, trip) => sum + totalDistance(trip), 0);
   const today = new Date();
   const monthTotal = matchingTrips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
-  const claims = matchingTrips.reduce((sum, trip) => sum + claimAmount(trip), 0);
+  const claims = claimSummary(matchingTrips);
   $("#trip-count").textContent = matchingTrips.length;
   $("#total-distance").textContent = formatKm(total);
   $("#month-distance").textContent = formatKm(monthTotal);
-  $("#claim-total").textContent = formatMoney(claims);
+  $("#claim-total").textContent = formatMoney(claims.total);
+  $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "ATO estimates are capped automatically in the summary.";
   $("#trip-label").textContent = matchingTrips.length === trips.length ? (trips.length === 1 ? "1 trip" : `${trips.length} trips`) : `${matchingTrips.length} of ${trips.length} trips`;
   $("#empty-state").hidden = trips.length > 0;
   $("#trip-list").innerHTML = matchingTrips.map((trip) => {
     const stops = trip.stops || [];
     const waypoints = stops.length ? `&waypoints=${encodeURIComponent(stops.join("|"))}` : "";
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}${waypoints}&travelmode=driving`;
-    const workDetails = [trip.purpose, trip.clientProject, trip.vehicle].filter(Boolean).map(escapeHtml).join(" · ");
-    return `<article class="trip"><div class="trip-date">${displayDate(trip.date)}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div>${workDetails ? `<p class="trip-details">${workDetails}</p>` : ""}<p class="trip-details">${formatKm(totalDistance(trip))}${trip.roundTrip ? " · round trip" : " · one way"}${trip.rateCents ? ` · ${formatMoney(claimAmount(trip))} claim` : ""}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Route</a><button class="text-button" data-duplicate="${trip.id}">Duplicate</button><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
+    const workDetails = [trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration].filter(Boolean).map(escapeHtml).join(" · ");
+    const methodLabel = { record_only: "record only", employer: "employer reimbursement", ato_cents: `ATO ${atoIncomeYear(trip.date)} cents/km`, ato_logbook: "ATO logbook" }[trip.claimMethod] || "record only";
+    const odometer = trip.odometerStart !== "" && trip.odometerEnd !== "" ? ` · odometer ${escapeHtml(trip.odometerStart)}–${escapeHtml(trip.odometerEnd)}` : "";
+    const dates = trip.endDate && trip.endDate !== trip.date ? `${displayDate(trip.date)} – ${displayDate(trip.endDate)}` : displayDate(trip.date);
+    return `<article class="trip"><div class="trip-date">${dates}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div>${workDetails ? `<p class="trip-details">${workDetails}</p>` : ""}<p class="trip-details">${formatKm(totalDistance(trip))}${odometer} · ${methodLabel}${claimAmount(trip) ? ` · ${formatMoney(claimAmount(trip))} estimate` : ""}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Route</a><button class="text-button" data-duplicate="${trip.id}">Duplicate</button><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
   }).join("") || (trips.length ? `<div class="empty-state"><h3>No matching trips</h3><p>Clear or change the filters to see more records.</p></div>` : "");
 }
 
@@ -87,6 +96,24 @@ async function loadSavedLocations() {
   if (error) throw error;
   savedLocations = data || [];
   renderSavedLocations();
+}
+
+function renderLogbooks() {
+  const registrations = [...new Set([...logbookPeriods.map((period) => period.vehicleRegistration), ...trips.map((trip) => trip.vehicleRegistration)].filter(Boolean))];
+  $("#vehicle-registrations").innerHTML = registrations.map((registration) => `<option value="${escapeAttribute(registration)}"></option>`).join("");
+  $("#logbook-list").innerHTML = logbookPeriods.length ? logbookPeriods.map((period) => {
+    const summary = logbookSummary(period, trips);
+    const warning = summary.businessUsePercent > 100 ? " · check readings: work distance exceeds total distance" : "";
+    const annual = period.incomeYearOpeningOdometer !== "" && period.incomeYearClosingOdometer !== "" ? ` · income-year odometer ${period.incomeYearOpeningOdometer}–${period.incomeYearClosingOdometer}` : " · add 1 July and 30 June readings when available";
+    return `<div class="saved-location"><div><strong>${escapeHtml(period.vehicleRegistration)} · ${escapeHtml(period.vehicleDescription)}</strong><span>${displayDate(period.startDate)} – ${displayDate(period.endDate)} · ${formatKm(summary.businessKilometres)} work / ${formatKm(summary.totalKilometres)} total · ${summary.businessUsePercent.toFixed(1)}% business use${annual}${warning}</span></div><button type="button" class="text-button" data-delete-logbook="${period.id}">Remove</button></div>`;
+  }).join("") : `<p>No ATO logbook periods yet.</p>`;
+}
+
+async function loadLogbooks() {
+  const { data, error } = await db.from("logbook_periods").select("*").order("start_date", { ascending: false });
+  if (error) throw error;
+  logbookPeriods = (data || []).map(fromLogbookDatabase);
+  renderLogbooks();
 }
 
 async function migrateLocalTrips() {
@@ -130,7 +157,8 @@ async function showApp(user) {
   try {
     const accepted = await ensurePrivacyAccepted();
     if (!accepted) return;
-    await Promise.all([loadTrips(), loadSavedLocations()]);
+    await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks()]);
+    renderLogbooks();
     await migrateLocalTrips();
   }
   catch (error) { alert(`Trips could not be loaded: ${error.message}`); }
@@ -141,6 +169,7 @@ function showAuth() {
   currentProfile = null;
   trips = [];
   savedLocations = [];
+  logbookPeriods = [];
   $("#auth-view").hidden = false;
   $("#app-view").hidden = true;
   $("#account-actions").hidden = true;
@@ -189,22 +218,38 @@ function addStop(value = "") {
   $("#stops-list").append(row);
 }
 
+function updateClaimMethod() {
+  const method = $("#claim-method").value;
+  const atoRate = atoRateForDate($("#trip-date").value);
+  $("#rate-field").hidden = method !== "employer";
+  if (method === "ato_cents") $("#claim-tip").textContent = atoRate ? `ATO estimate: ${atoRate}¢/km for ${atoIncomeYear($("#trip-date").value)}, capped at 5,000 work km per car for the income year.` : "No ATO cents-per-kilometre rate is configured for this date.";
+  else if (method === "ato_logbook") $("#claim-tip").textContent = "ATO logbook records require registration, purpose, and starting and ending odometer readings. Actual expenses are calculated separately using the business-use percentage.";
+  else if (method === "employer") $("#claim-tip").textContent = "Enter the reimbursement rate set by your employer. This is separate from an ATO deduction estimate.";
+  else $("#claim-tip").textContent = "This trip will be recorded without calculating a reimbursement or ATO claim estimate.";
+}
+
 function openForm(trip, duplicate = false) {
   form.reset();
   $("#form-title").textContent = duplicate ? "Duplicate trip" : (trip ? "Edit trip" : "Add a trip");
   $("#trip-id").value = duplicate ? "" : (trip?.id || "");
   $("#trip-date").value = duplicate ? new Date().toISOString().slice(0, 10) : (trip?.date || new Date().toISOString().slice(0, 10));
+  $("#trip-end-date").value = duplicate ? new Date().toISOString().slice(0, 10) : (trip?.endDate || trip?.date || new Date().toISOString().slice(0, 10));
   $("#distance").value = trip?.distance || "";
   $("#purpose").value = trip?.purpose || "";
   $("#client-project").value = trip?.clientProject || "";
   $("#vehicle").value = trip?.vehicle || "";
+  $("#vehicle-registration").value = trip?.vehicleRegistration || "";
+  $("#claim-method").value = trip?.claimMethod || (trip?.rateCents ? "employer" : "record_only");
   $("#rate-cents").value = trip?.rateCents || "";
+  $("#odometer-start").value = duplicate ? "" : (trip?.odometerStart ?? "");
+  $("#odometer-end").value = duplicate ? "" : (trip?.odometerEnd ?? "");
   $("#start-address").value = trip?.start || "";
   $("#stops-list").replaceChildren();
   (trip?.stops || []).forEach(addStop);
   $("#end-address").value = trip?.end || "";
   $("#round-trip").checked = trip?.roundTrip || false;
   $("#notes").value = trip?.notes || "";
+  updateClaimMethod();
   dialog.showModal();
 }
 
@@ -213,8 +258,8 @@ function exportCsv() {
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
-  const header = ["Date", "Purpose", "Client or project", "Vehicle", "Start address", "Stops", "End address", "One-way distance (km)", "Round trip", "Total distance (km)", "Rate (cents/km)", "Claim estimate (AUD)", "Notes"];
-  const rows = reportTrips.map((trip) => [trip.date, trip.purpose, trip.clientProject, trip.vehicle, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", totalDistance(trip), trip.rateCents || "", claimAmount(trip).toFixed(2), trip.notes]);
+  const header = ["Journey starts", "Journey ends", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
+  const rows = reportTrips.map((trip) => [trip.date, trip.endDate || trip.date, trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, trip.claimMethod, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), trip.claimMethod === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip).toFixed(2), trip.notes]);
   const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
   downloadBlob("travel-log-report.csv", new Blob([csv], { type: "text/csv;charset=utf-8" }));
 }
@@ -224,7 +269,7 @@ function openPrintableReport() {
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
-  const payload = { generatedAt: new Date().toISOString(), user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, trips: reportTrips };
+  const payload = { generatedAt: new Date().toISOString(), user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, trips: reportTrips, claimSummary: claimSummary(reportTrips) };
   sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
   const reportWindow = window.open("report.html", "_blank");
   if (!reportWindow) { sessionStorage.removeItem("travel-log-print-report"); alert("Allow pop-ups for Travel Log, then try Print / Save PDF again."); }
@@ -262,6 +307,20 @@ async function addSavedLocation() {
   $("#location-label").value = "";
   $("#location-address").value = "";
   await loadSavedLocations();
+}
+
+async function addLogbookPeriod() {
+  const period = { vehicleRegistration: $("#logbook-registration").value.trim().toUpperCase(), vehicleDescription: $("#logbook-vehicle").value.trim(), engineCapacity: $("#logbook-engine").value.trim(), startDate: $("#logbook-start-date").value, endDate: $("#logbook-end-date").value, openingOdometer: $("#logbook-opening").value, closingOdometer: $("#logbook-closing").value, incomeYearOpeningOdometer: $("#logbook-year-opening").value, incomeYearClosingOdometer: $("#logbook-year-closing").value };
+  const validationError = validateLogbookPeriod(period);
+  if (validationError) return alert(validationError);
+  if (period.incomeYearOpeningOdometer !== "" && period.incomeYearClosingOdometer !== "" && Number(period.incomeYearClosingOdometer) < Number(period.incomeYearOpeningOdometer)) return alert("The income-year closing odometer cannot be below the opening odometer.");
+  const button = $("#add-logbook");
+  setButtonBusy(button, true, "Saving…");
+  const { error } = await db.from("logbook_periods").upsert({ user_id: currentUser.id, vehicle_registration: period.vehicleRegistration, vehicle_description: period.vehicleDescription, engine_capacity: period.engineCapacity || null, start_date: period.startDate, end_date: period.endDate, opening_odometer: Number(period.openingOdometer), closing_odometer: Number(period.closingOdometer), income_year_opening_odometer: period.incomeYearOpeningOdometer === "" ? null : Number(period.incomeYearOpeningOdometer), income_year_closing_odometer: period.incomeYearClosingOdometer === "" ? null : Number(period.incomeYearClosingOdometer) }, { onConflict: "user_id,vehicle_registration,start_date" });
+  setButtonBusy(button, false);
+  if (error) return alert(`Logbook period could not be saved: ${error.message}`);
+  for (const id of ["logbook-registration", "logbook-vehicle", "logbook-engine", "logbook-start-date", "logbook-end-date", "logbook-opening", "logbook-closing", "logbook-year-opening", "logbook-year-closing"]) $(`#${id}`).value = "";
+  await loadLogbooks();
 }
 
 async function calculateDistance() {
@@ -321,6 +380,14 @@ $("#account-button").addEventListener("click", openAccount);
 $("#account-form").addEventListener("submit", (event) => event.preventDefault());
 $("#close-account").addEventListener("click", () => accountDialog.close());
 $("#add-location").addEventListener("click", addSavedLocation);
+$("#add-logbook").addEventListener("click", addLogbookPeriod);
+$("#logbook-list").addEventListener("click", async (event) => {
+  const id = event.target.dataset.deleteLogbook;
+  if (!id || !confirm("Remove this logbook period? Existing trip records will not be deleted.")) return;
+  const { error } = await db.from("logbook_periods").delete().eq("id", id);
+  if (error) return alert(`Logbook period could not be removed: ${error.message}`);
+  await loadLogbooks();
+});
 $("#saved-location-list").addEventListener("click", async (event) => {
   const id = event.target.dataset.deleteLocation;
   if (!id || !confirm("Remove this saved location? Existing trips will not be changed.")) return;
@@ -328,7 +395,7 @@ $("#saved-location-list").addEventListener("click", async (event) => {
   if (error) return alert(`Location could not be removed: ${error.message}`);
   await loadSavedLocations();
 });
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, trips }));
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
 $("#delete-account").addEventListener("click", async () => {
   if ($("#delete-confirmation").value.trim() !== "DELETE") return alert("Type DELETE exactly to confirm permanent account deletion.");
   if (!confirm("Permanently delete your account and every saved trip? This cannot be undone.")) return;
@@ -379,15 +446,19 @@ $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
 $("#add-stop-button").addEventListener("click", () => addStop());
+$("#claim-method").addEventListener("change", updateClaimMethod);
+$("#trip-date").addEventListener("change", updateClaimMethod);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const saveButton = form.querySelector('button[type="submit"]');
   const id = $("#trip-id").value || crypto.randomUUID();
   const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
-  const trip = { id, date: $("#trip-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), rateCents: Number($("#rate-cents").value || 0), start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
+  const claimMethod = $("#claim-method").value;
+  const trip = { id, date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
   const validationError = validateTrip(trip);
   if (validationError) return alert(validationError);
+  if (claimMethod === "ato_logbook" && !logbookPeriods.some((period) => period.vehicleRegistration.toUpperCase() === trip.vehicleRegistration.toUpperCase() && trip.date >= period.startDate && trip.endDate <= period.endDate)) return alert("Create a matching 12-week logbook period for this registration and journey dates in Account and privacy before saving an ATO logbook trip.");
   setButtonBusy(saveButton, true, "Saving…");
   const query = $("#trip-id").value ? db.from("trips").update(toDatabase(trip)).eq("id", id) : db.from("trips").insert(toDatabase(trip));
   const { error } = await query;

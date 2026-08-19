@@ -18,6 +18,9 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 - Track purpose, vehicle, and an optional reimbursement rate
 - Export filtered CSV reports or print a clean report to PDF
 - Duplicate frequent trips and keep private saved locations
+- Record vehicle registration and journey odometer readings
+- Separate employer reimbursements from ATO cents-per-kilometre estimates
+- Maintain 12-week ATO-style logbook periods and business-use summaries
 
 ## Run it on your computer
 
@@ -30,7 +33,9 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
 
-Run the migration files in `supabase/` once in release order: privacy/security, reporting, then stabilization. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, private saved locations, validation constraints, and hardened database functions. Never place a Supabase service-role key in this repository or in browser code.
+Run the migration files in `supabase/` once in release order: privacy/security, reporting, stabilization, then ATO/logbook. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, private saved locations and logbooks, validation constraints, and hardened database functions. Never place a Supabase service-role key in this repository or in browser code.
+
+ATO figures are estimates only. The app currently recognises the 88¢ rate for 2024–25 and 2025–26 and the 91¢ rate for 2026–27, and applies the 5,000 work-kilometre annual cap per vehicle to the summary. Users remain responsible for eligibility and supporting records.
 
 ## Publish with GitHub Pages
 

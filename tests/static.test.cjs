@@ -17,7 +17,7 @@ test("production pages load pinned and local scripts in the required order", () 
 });
 
 test("privacy, report and migration assets are present", () => {
-  for (const name of ["privacy.html", "report.html", "report.css", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql"]) {
+  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql"]) {
     assert.ok(fs.existsSync(path.join(root, name)), name);
   }
 });
