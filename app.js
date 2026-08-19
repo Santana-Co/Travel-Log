@@ -17,6 +17,14 @@ function displayDate(value) { return new Date(`${value}T00:00:00`).toLocaleDateS
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value; return node.innerHTML; }
 function setMessage(message, isError = false) { const element = $("#auth-message"); element.textContent = message; element.classList.toggle("error", isError); }
 function setButtonBusy(button, busy, busyText) { if (!button.dataset.label) button.dataset.label = button.textContent; button.disabled = busy; button.textContent = busy ? busyText : button.dataset.label; }
+function passwordError(password) {
+  if (password.length < 12) return "Password must be at least 12 characters long.";
+  if (!/[a-z]/.test(password)) return "Password must include a lowercase letter.";
+  if (!/[A-Z]/.test(password)) return "Password must include an uppercase letter.";
+  if (!/[0-9]/.test(password)) return "Password must include a number.";
+  if (!/[!@#$%^&*()_+\-=\[\]{};'\\:\"|<>?,.\/`~]/.test(password)) return "Password must include a symbol such as !, @, #, or _.";
+  return "";
+}
 
 function fromDatabase(row) {
   return { id: row.id, date: row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, notes: row.notes || "" };
@@ -93,6 +101,8 @@ function setAuthMode(mode) {
   $("#full-name-field").hidden = !signingUp;
   $("#full-name").required = signingUp;
   $("#password").autocomplete = signingUp ? "new-password" : "current-password";
+  $("#password").minLength = signingUp ? 12 : 1;
+  $("#password-hint").hidden = !signingUp;
   $("#auth-submit").textContent = signingUp ? "Create account" : "Sign in";
   $("#auth-submit").dataset.label = $("#auth-submit").textContent;
   $("#toggle-auth-mode").textContent = signingUp ? "Already have an account? Sign in" : "Create an account";
@@ -163,6 +173,8 @@ $("#auth-form").addEventListener("submit", async (event) => {
   const button = $("#auth-submit");
   const email = $("#email").value.trim();
   const password = $("#password").value;
+  const requirementError = authMode === "signup" ? passwordError(password) : "";
+  if (requirementError) return setMessage(requirementError, true);
   setButtonBusy(button, true, authMode === "signup" ? "Creating…" : "Signing in…");
   setMessage("");
   try {
@@ -225,10 +237,14 @@ $("#trip-list").addEventListener("click", async (event) => {
 db.auth.onAuthStateChange((event, session) => {
   setTimeout(async () => {
     if (event === "PASSWORD_RECOVERY") {
-      const password = prompt("Enter a new password (at least 6 characters):");
+      const password = prompt("Enter a new password with at least 12 characters, including uppercase, lowercase, a number, and a symbol:");
       if (password) {
-        const { error } = await db.auth.updateUser({ password });
-        alert(error ? error.message : "Your password has been updated.");
+        const requirementError = passwordError(password);
+        if (requirementError) alert(requirementError);
+        else {
+          const { error } = await db.auth.updateUser({ password });
+          alert(error ? error.message : "Your password has been updated.");
+        }
       }
     }
     if (session?.user) await showApp(session.user); else showAuth();

@@ -29,7 +29,7 @@
         <form id="auth-form">
           <label id="full-name-field" hidden>Full name<input id="full-name" type="text" autocomplete="name" /></label>
           <label>Email address<input id="email" type="email" autocomplete="email" required /></label>
-          <label>Password<input id="password" type="password" autocomplete="current-password" minlength="6" required /></label>
+          <label>Password<input id="password" type="password" autocomplete="current-password" required /><span id="password-hint" class="input-hint" hidden>Use at least 12 characters, including uppercase, lowercase, a number, and a symbol such as !, @, #, or _.</span></label>
           <button id="auth-submit" class="button primary" type="submit">Sign in</button>
         </form>
         <p id="auth-message" class="status-message" role="status"></p>
