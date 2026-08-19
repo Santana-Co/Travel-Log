@@ -2,14 +2,19 @@ const storageKey = "travel-log-trips";
 const supabaseUrl = "https://caqgnnlgtomcmkpafvoc.supabase.co";
 const supabasePublishableKey = "sb_publishable_QH3nXDysJyTfg61qv_h98w_-SergW2w";
 const distanceApiUrl = "https://travel-log-distance-api.jfsantana0691.workers.dev/distance";
+const privacyVersion = "2026-08-19";
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#trip-dialog");
 const form = $("#trip-form");
+const privacyDialog = $("#privacy-dialog");
+const accountDialog = $("#account-dialog");
 
 let trips = [];
 let currentUser = null;
+let currentProfile = null;
 let authMode = "signin";
+let privacyResolver = null;
 
 function totalDistance(trip) { return Number(trip.distance) * (trip.roundTrip ? 2 : 1); }
 function formatKm(value) { return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`; }
@@ -75,18 +80,41 @@ async function migrateLocalTrips() {
   await loadTrips();
 }
 
+async function ensurePrivacyAccepted() {
+  const { data, error } = await db.from("profiles").select("id, full_name, privacy_version, privacy_accepted_at").eq("id", currentUser.id).single();
+  if (error) throw new Error(`Privacy settings could not be loaded. ${error.message}`);
+  currentProfile = data;
+  if (data.privacy_version === privacyVersion && data.privacy_accepted_at) return true;
+  if (currentUser.user_metadata?.privacy_version === privacyVersion && currentUser.user_metadata?.privacy_accepted_at) {
+    const { error: acceptanceError } = await db.rpc("accept_privacy_notice", { notice_version: privacyVersion });
+    if (acceptanceError) throw acceptanceError;
+    currentProfile = { ...data, privacy_version: privacyVersion, privacy_accepted_at: new Date().toISOString() };
+    return true;
+  }
+  $("#existing-privacy-consent").checked = false;
+  privacyDialog.showModal();
+  return new Promise((resolve) => { privacyResolver = resolve; });
+}
+
 async function showApp(user) {
+  if (currentUser?.id === user.id && $("#auth-view").hidden) return;
   currentUser = user;
   $("#auth-view").hidden = true;
   $("#app-view").hidden = false;
   $("#account-actions").hidden = false;
   $("#account-name").textContent = user.user_metadata?.full_name || user.email;
-  try { await loadTrips(); await migrateLocalTrips(); }
+  try {
+    const accepted = await ensurePrivacyAccepted();
+    if (!accepted) return;
+    await loadTrips();
+    await migrateLocalTrips();
+  }
   catch (error) { alert(`Trips could not be loaded: ${error.message}`); }
 }
 
 function showAuth() {
   currentUser = null;
+  currentProfile = null;
   trips = [];
   $("#auth-view").hidden = false;
   $("#app-view").hidden = true;
@@ -103,6 +131,8 @@ function setAuthMode(mode) {
   $("#password").autocomplete = signingUp ? "new-password" : "current-password";
   $("#password").minLength = signingUp ? 12 : 1;
   $("#password-hint").hidden = !signingUp;
+  $("#privacy-field").hidden = !signingUp;
+  $("#privacy-consent").required = signingUp;
   $("#auth-submit").textContent = signingUp ? "Create account" : "Sign in";
   $("#auth-submit").dataset.label = $("#auth-submit").textContent;
   $("#toggle-auth-mode").textContent = signingUp ? "Already have an account? Sign in" : "Create an account";
@@ -151,6 +181,21 @@ function exportCsv() {
   const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "travel-log-report.csv"; link.click(); URL.revokeObjectURL(link.href);
 }
 
+function downloadJson(filename, value) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }));
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function openAccount() {
+  $("#account-full-name").textContent = currentProfile?.full_name || currentUser.user_metadata?.full_name || "Not provided";
+  $("#account-email").textContent = currentUser.email;
+  $("#delete-confirmation").value = "";
+  accountDialog.showModal();
+}
+
 async function calculateDistance() {
   const start = $("#start-address").value.trim();
   const end = $("#end-address").value.trim();
@@ -159,7 +204,9 @@ async function calculateDistance() {
   const button = $("#calculate-distance");
   setButtonBusy(button, true, "Calculating…");
   try {
-    const response = await fetch(distanceApiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ start, stops, end }) });
+    const { data: { session } } = await db.auth.getSession();
+    if (!session?.access_token) throw new Error("Your session has expired. Sign in again, then retry.");
+    const response = await fetch(distanceApiUrl, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ start, stops, end }) });
     const data = await response.json();
     if (!response.ok || typeof data.distanceKm !== "number") throw new Error(data.error || "Could not calculate this route.");
     $("#distance").value = data.distanceKm.toFixed(1);
@@ -179,8 +226,9 @@ $("#auth-form").addEventListener("submit", async (event) => {
   setMessage("");
   try {
     if (authMode === "signup") {
+      if (!$("#privacy-consent").checked) return setMessage("Please read and agree to the Privacy & Security Notice.", true);
       const redirectTo = location.href.split("#")[0].split("?")[0];
-      const { data, error } = await db.auth.signUp({ email, password, options: { data: { full_name: $("#full-name").value.trim() }, emailRedirectTo: redirectTo } });
+      const { data, error } = await db.auth.signUp({ email, password, options: { data: { full_name: $("#full-name").value.trim(), privacy_version: privacyVersion, privacy_accepted_at: new Date().toISOString() }, emailRedirectTo: redirectTo } });
       if (error) throw error;
       if (!data.session) setMessage("Account created. Check your email and click the confirmation link, then sign in.");
     } else {
@@ -200,6 +248,44 @@ $("#forgot-password").addEventListener("click", async () => {
   setMessage(error ? error.message : "Password reset email sent. Check your inbox.", Boolean(error));
 });
 $("#sign-out-button").addEventListener("click", () => db.auth.signOut());
+$("#account-button").addEventListener("click", openAccount);
+$("#close-account").addEventListener("click", () => accountDialog.close());
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, trips }));
+$("#delete-account").addEventListener("click", async () => {
+  if ($("#delete-confirmation").value.trim() !== "DELETE") return alert("Type DELETE exactly to confirm permanent account deletion.");
+  if (!confirm("Permanently delete your account and every saved trip? This cannot be undone.")) return;
+  const button = $("#delete-account");
+  setButtonBusy(button, true, "Deleting…");
+  const userId = currentUser.id;
+  const { error } = await db.rpc("delete_my_account");
+  setButtonBusy(button, false);
+  if (error) return alert(`Your account could not be deleted: ${error.message}`);
+  localStorage.removeItem(`travel-log-migrated-${userId}`);
+  accountDialog.close();
+  await db.auth.signOut({ scope: "local" });
+  showAuth();
+  alert("Your account and saved trips have been permanently deleted.");
+});
+
+$("#privacy-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!$("#existing-privacy-consent").checked) return;
+  const button = $("#accept-privacy");
+  setButtonBusy(button, true, "Saving…");
+  const { error } = await db.rpc("accept_privacy_notice", { notice_version: privacyVersion });
+  setButtonBusy(button, false);
+  if (error) return alert(`Your acknowledgement could not be saved: ${error.message}`);
+  currentProfile = { ...currentProfile, privacy_version: privacyVersion, privacy_accepted_at: new Date().toISOString() };
+  privacyDialog.close();
+  privacyResolver?.(true);
+  privacyResolver = null;
+});
+$("#privacy-sign-out").addEventListener("click", async () => {
+  privacyDialog.close();
+  privacyResolver?.(false);
+  privacyResolver = null;
+  await db.auth.signOut();
+});
 $("#new-trip-button").addEventListener("click", () => openForm());
 $("#empty-add-button").addEventListener("click", () => openForm());
 $("#close-button").addEventListener("click", () => dialog.close());

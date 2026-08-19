@@ -1,23 +1,32 @@
 # Travel Log
 
-A simple, private browser app for recording work trips. Data is stored only in the browser on the device you use; export a CSV whenever you need a report.
+Santana-Co's pilot app for recording work trips. Users sign in and their private records are stored in Supabase under row-level access controls.
 
 ## Features
 
 - Add, edit, search, and delete trips
+- Create an account and use trips across devices
+- Add multiple stops to a trip
 - Track start and end addresses, date, one-way distance, notes, and round-trip status
 - Open each route in Google Maps to confirm the driving distance
 - Automatic driving-distance calculation for all visitors
 - View total distance and current-month distance
 - Export all records to a CSV report
+- Download account data and permanently delete an account
+- Review and acknowledge the Privacy & Security Notice
 
 ## Run it on your computer
 
-Open `index.html` in a browser. No installation or account is required.
+Serve this directory from a local web server and open it in a browser. A configured Supabase account is required.
 
 ## Automatic distance calculation
 
 The app uses a shared secure service to calculate driving distance. Visitors do not need an API key.
+The service accepts distance requests only from signed-in Travel Log users.
+
+## Supabase privacy controls
+
+Before deploying this release, run `supabase/privacy-security-migration.sql` once in the Supabase SQL Editor. It adds versioned privacy acknowledgement and self-service account deletion. Never place a Supabase service-role key in this repository or in browser code.
 
 ## Publish with GitHub Pages
 
@@ -27,6 +36,6 @@ The app uses a shared secure service to calculate driving distance. Visitors do 
 4. Choose branch **main**, folder **/(root)**, then click **Save**.
 5. Wait a minute or two. GitHub will show the public website address at the top of the Pages settings page.
 
-## Important privacy note
+## Privacy and security
 
-Trip records are not saved to GitHub. They remain in the browser’s local storage. Clearing browser data or using another device starts a separate, empty log; export CSV reports for backup.
+Trip records are not saved to GitHub. See `privacy.html` for the user-facing notice and `SECURITY.md` for reporting and pilot safeguards.

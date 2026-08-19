@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A simple work travel log." />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; connect-src 'self' https://caqgnnlgtomcmkpafvoc.supabase.co wss://caqgnnlgtomcmkpafvoc.supabase.co https://travel-log-distance-api.jfsantana0691.workers.dev; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests" />
     <title>Travel Log</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -15,7 +16,7 @@
         <p class="intro">Track work trips, confirm routes, and export your report.</p>
       </div>
       <div id="account-actions" class="account-actions" hidden>
-        <span id="account-name"></span>
+        <button id="account-button" class="button secondary" type="button" aria-label="Open account settings"><span id="account-name"></span></button>
         <button id="sign-out-button" class="button secondary" type="button">Sign out</button>
         <button id="new-trip-button" class="button primary" type="button">+ Add trip</button>
       </div>
@@ -30,6 +31,7 @@
           <label id="full-name-field" hidden>Full name<input id="full-name" type="text" autocomplete="name" /></label>
           <label>Email address<input id="email" type="email" autocomplete="email" required /></label>
           <label>Password<input id="password" type="password" autocomplete="current-password" required /><span id="password-hint" class="input-hint" hidden>Use at least 12 characters, including uppercase, lowercase, a number, and a symbol such as !, @, #, or _.</span></label>
+          <label id="privacy-field" class="checkbox consent-field" hidden><input id="privacy-consent" type="checkbox" /> <span>I have read and agree to the <a href="privacy.html" target="_blank" rel="noopener">Privacy &amp; Security Notice</a>.</span></label>
           <button id="auth-submit" class="button primary" type="submit">Sign in</button>
         </form>
         <p id="auth-message" class="status-message" role="status"></p>
@@ -37,6 +39,8 @@
           <button id="toggle-auth-mode" class="text-button" type="button">Create an account</button>
           <button id="forgot-password" class="text-button" type="button">Forgot password?</button>
         </div>
+        <p class="pilot-note">Pilot service: do not enter health, financial, identity-document, or highly confidential information in trip notes.</p>
+        <p class="legal-link"><a href="privacy.html">Privacy &amp; Security Notice</a></p>
       </section>
     </main>
 
@@ -61,6 +65,7 @@
         </div>
         <div id="trip-list" class="trip-list" aria-live="polite"></div>
       </section>
+      <footer class="site-footer"><span>Santana-Co Travel Log pilot</span><a href="privacy.html">Privacy &amp; Security Notice</a></footer>
     </main>
 
     <dialog id="trip-dialog">
@@ -84,7 +89,26 @@
       </form>
     </dialog>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <dialog id="privacy-dialog" aria-labelledby="privacy-dialog-title">
+      <form id="privacy-form" method="dialog">
+        <div class="dialog-heading"><div><p class="eyebrow">PRIVACY UPDATE</p><h2 id="privacy-dialog-title">Please review our pilot notice</h2></div></div>
+        <p class="dialog-copy">Santana-Co stores your profile and trips so they are available across your devices. Route addresses are sent securely to our routing providers when you calculate a distance.</p>
+        <p class="dialog-copy"><a href="privacy.html" target="_blank" rel="noopener">Read the Privacy &amp; Security Notice</a></p>
+        <label class="checkbox consent-field"><input id="existing-privacy-consent" type="checkbox" required /> <span>I have read and agree to the current notice.</span></label>
+        <div class="dialog-actions"><button id="privacy-sign-out" type="button" class="button secondary">Sign out</button><button id="accept-privacy" class="button primary" type="submit">Accept and continue</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="account-dialog" aria-labelledby="account-dialog-title">
+      <form method="dialog">
+        <div class="dialog-heading"><div><p class="eyebrow">YOUR ACCOUNT</p><h2 id="account-dialog-title">Account and privacy</h2></div><button type="button" id="close-account" class="icon-button" aria-label="Close">×</button></div>
+        <dl class="account-details"><div><dt>Name</dt><dd id="account-full-name"></dd></div><div><dt>Email</dt><dd id="account-email"></dd></div></dl>
+        <section class="account-section"><h3>Your information</h3><p>Download a JSON copy of your profile, privacy acknowledgement, and all saved trips.</p><button id="download-data" type="button" class="button secondary">Download my data</button></section>
+        <section class="account-section danger-section"><h3>Delete account</h3><p>This permanently deletes your profile and trips. It cannot be undone.</p><label>Type DELETE to confirm<input id="delete-confirmation" type="text" autocomplete="off" /></label><button id="delete-account" type="button" class="button danger">Permanently delete my account</button></section>
+      </form>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3"></script>
     <script src="app.js"></script>
   </body>
 </html>
