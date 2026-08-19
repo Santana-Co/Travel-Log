@@ -10,7 +10,7 @@ const form = $("#trip-form");
 const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
-const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookSummary, totalDistance, validateLogbookPeriod, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
@@ -31,6 +31,22 @@ function applyTheme(theme) {
   const selected = window.TravelLogTheme.apply(theme);
   const control = $("#appearance-theme");
   if (control) control.value = selected;
+  return selected;
+}
+function activeRecordingMode() { return normalizeRecordingMode(currentProfile?.recording_mode); }
+function applyRecordingMode(mode) {
+  const selected = normalizeRecordingMode(mode);
+  const control = $("#recording-mode");
+  if (control) control.value = selected;
+  $("#logbook-account-section").hidden = selected !== "ato_logbook";
+  const guidance = {
+    general: { title: "Employer reimbursement / general travel log", text: "Record work travel and optionally add your employer's reimbursement rate." },
+    ato_cents: { title: "ATO cents per kilometre", text: "The applicable ATO rate and 5,000 work-kilometre cap per car and income year are applied automatically." },
+    ato_logbook: { title: "ATO logbook / odometer", text: "Record journey odometers and maintain a representative logbook to calculate a business-use percentage." },
+  }[selected];
+  $("#mode-guidance-title").textContent = guidance.title;
+  $("#mode-guidance-text").textContent = guidance.text;
+  $("#mode-guidance-link").hidden = selected === "general";
   return selected;
 }
 function passwordError(password) {
@@ -66,11 +82,23 @@ function render() {
   const today = new Date();
   const monthTotal = matchingTrips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
   const claims = claimSummary(matchingTrips);
+  const recordingMode = activeRecordingMode();
   $("#trip-count").textContent = matchingTrips.length;
   $("#total-distance").textContent = formatKm(total);
   $("#month-distance").textContent = formatKm(monthTotal);
-  $("#claim-total").textContent = formatMoney(claims.total);
-  $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "ATO estimates are capped automatically in the summary.";
+  if (recordingMode === "ato_cents") {
+    $("#claim-summary-label").textContent = "ATO cents/km estimate";
+    $("#claim-total").textContent = formatMoney(claims.atoCents);
+    $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "ATO estimates are capped automatically in the summary.";
+  } else if (recordingMode === "ato_logbook") {
+    $("#claim-summary-label").textContent = "Logbook periods";
+    $("#claim-total").textContent = String(logbookPeriods.length);
+    $("#ato-cap-message").textContent = "Use each completed period's business-use percentage with eligible actual car expenses.";
+  } else {
+    $("#claim-summary-label").textContent = "Reimbursement estimate";
+    $("#claim-total").textContent = formatMoney(claims.employer);
+    $("#ato-cap-message").textContent = "Only trips with an employer rate are included in this estimate.";
+  }
   $("#trip-label").textContent = matchingTrips.length === trips.length ? (trips.length === 1 ? "1 trip" : `${trips.length} trips`) : `${matchingTrips.length} of ${trips.length} trips`;
   $("#empty-state").hidden = trips.length > 0;
   $("#trip-list").innerHTML = matchingTrips.map((trip) => {
@@ -138,10 +166,11 @@ async function migrateLocalTrips() {
 }
 
 async function ensurePrivacyAccepted() {
-  const { data, error } = await db.from("profiles").select("id, full_name, privacy_version, privacy_accepted_at, appearance_theme").eq("id", currentUser.id).single();
+  const { data, error } = await db.from("profiles").select("id, full_name, privacy_version, privacy_accepted_at, appearance_theme, recording_mode").eq("id", currentUser.id).single();
   if (error) throw new Error(`Privacy settings could not be loaded. ${error.message}`);
   currentProfile = data;
   applyTheme(data.appearance_theme);
+  applyRecordingMode(data.recording_mode);
   if (data.privacy_version === privacyVersion && data.privacy_accepted_at) return true;
   if (currentUser.user_metadata?.privacy_version === privacyVersion && currentUser.user_metadata?.privacy_accepted_at) {
     const { error: acceptanceError } = await db.rpc("accept_privacy_notice", { notice_version: privacyVersion });
@@ -166,6 +195,7 @@ async function showApp(user) {
     if (!accepted) return;
     await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks()]);
     renderLogbooks();
+    render();
     await migrateLocalTrips();
   }
   catch (error) { alert(`Trips could not be loaded: ${error.message}`); }
@@ -225,14 +255,25 @@ function addStop(value = "") {
   $("#stops-list").append(row);
 }
 
-function updateClaimMethod() {
-  const method = $("#claim-method").value;
+function updateTripModeTip() {
+  const mode = normalizeRecordingMode(form.dataset.recordingMode);
   const atoRate = atoRateForDate($("#trip-date").value);
-  $("#rate-field").hidden = method !== "employer";
-  if (method === "ato_cents") $("#claim-tip").textContent = atoRate ? `ATO estimate: ${atoRate}¢/km for ${atoIncomeYear($("#trip-date").value)}, capped at 5,000 work km per car for the income year.` : "No ATO cents-per-kilometre rate is configured for this date.";
-  else if (method === "ato_logbook") $("#claim-tip").textContent = "ATO logbook records require registration, purpose, and starting and ending odometer readings. Actual expenses are calculated separately using the business-use percentage.";
-  else if (method === "employer") $("#claim-tip").textContent = "Enter the reimbursement rate set by your employer. This is separate from an ATO deduction estimate.";
-  else $("#claim-tip").textContent = "This trip will be recorded without calculating a reimbursement or ATO claim estimate.";
+  if (mode === "ato_cents") $("#claim-tip").textContent = atoRate ? `ATO estimate: ${atoRate}¢/km for ${atoIncomeYear($("#trip-date").value)}, capped at 5,000 work km per car for the income year.` : "No ATO cents-per-kilometre rate is configured for this date.";
+  else if (mode === "ato_logbook") $("#claim-tip").textContent = "Enter registration, purpose, and starting and ending odometer readings. Actual expenses are calculated separately using the business-use percentage.";
+  else $("#claim-tip").textContent = "Add an employer rate to calculate a reimbursement, or leave it blank to keep a general travel record.";
+}
+
+function configureTripMode(mode, trip) {
+  const selected = normalizeRecordingMode(mode);
+  form.dataset.recordingMode = selected;
+  $("#claim-method").value = trip?.claimMethod || (selected === "general" ? "record_only" : selected);
+  $("#rate-field").hidden = selected !== "general";
+  $("#odometer-start-field").hidden = selected !== "ato_logbook";
+  $("#odometer-end-field").hidden = selected !== "ato_logbook";
+  $("#round-trip-field").hidden = selected === "ato_logbook";
+  $("#distance-field-label").textContent = selected === "ato_logbook" ? "Route estimate (km)" : "One-way distance (km)";
+  $("#route-tip").textContent = selected === "ato_logbook" ? "Calculate provides a route estimate for checking. Odometer readings determine the recorded distance." : "Calculate uses the shared route service to estimate the driving distance.";
+  updateTripModeTip();
 }
 
 function openForm(trip, duplicate = false) {
@@ -256,7 +297,7 @@ function openForm(trip, duplicate = false) {
   $("#end-address").value = trip?.end || "";
   $("#round-trip").checked = trip?.roundTrip || false;
   $("#notes").value = trip?.notes || "";
-  updateClaimMethod();
+  configureTripMode(trip ? recordingModeForTrip(trip) : activeRecordingMode(), trip);
   dialog.showModal();
 }
 
@@ -276,7 +317,7 @@ function openPrintableReport() {
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
-  const payload = { generatedAt: new Date().toISOString(), user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, trips: reportTrips, claimSummary: claimSummary(reportTrips) };
+  const payload = { generatedAt: new Date().toISOString(), recordingMode: activeRecordingMode(), user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, logbookPeriods, trips: reportTrips, claimSummary: claimSummary(reportTrips) };
   sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
   const reportWindow = window.open("report.html", "_blank");
   if (!reportWindow) { sessionStorage.removeItem("travel-log-print-report"); alert("Allow pop-ups for Travel Log, then try Print / Save PDF again."); }
@@ -300,6 +341,9 @@ function openAccount() {
   $("#account-email").textContent = currentUser.email;
   $("#appearance-theme").value = window.TravelLogTheme.normalize(currentProfile?.appearance_theme);
   $("#appearance-message").textContent = "";
+  $("#recording-mode").value = activeRecordingMode();
+  $("#recording-mode-message").textContent = "";
+  applyRecordingMode(activeRecordingMode());
   $("#delete-confirmation").value = "";
   accountDialog.showModal();
 }
@@ -347,7 +391,9 @@ async function calculateDistance() {
     const data = await response.json();
     if (!response.ok || typeof data.distanceKm !== "number") throw new Error(data.error || "Could not calculate this route.");
     $("#distance").value = data.distanceKm.toFixed(1);
-    $("#route-tip").textContent = "Distance calculated using the shared route service. Review it before saving.";
+    $("#route-tip").textContent = normalizeRecordingMode(form.dataset.recordingMode) === "ato_logbook"
+      ? "Route estimate calculated. Enter the journey's odometer readings; they determine the recorded distance."
+      : "Distance calculated using the shared route service. Review it before saving.";
   } catch (error) { alert(error.message || "Distance lookup failed. Check the addresses, then try again."); }
   finally { setButtonBusy(button, false); }
 }
@@ -388,6 +434,26 @@ $("#sign-out-button").addEventListener("click", () => db.auth.signOut());
 $("#account-button").addEventListener("click", openAccount);
 $("#account-form").addEventListener("submit", (event) => event.preventDefault());
 $("#close-account").addEventListener("click", () => accountDialog.close());
+$("#recording-mode").addEventListener("change", async (event) => {
+  const control = event.currentTarget;
+  const previousMode = activeRecordingMode();
+  const nextMode = applyRecordingMode(control.value);
+  const message = $("#recording-mode-message");
+  control.disabled = true;
+  message.textContent = "Saving method…";
+  const { error } = await db.from("profiles").update({ recording_mode: nextMode }).eq("id", currentUser.id);
+  control.disabled = false;
+  if (error) {
+    applyRecordingMode(previousMode);
+    message.textContent = `Method could not be saved: ${error.message}`;
+    message.classList.add("error");
+    return;
+  }
+  currentProfile = { ...currentProfile, recording_mode: nextMode };
+  message.classList.remove("error");
+  message.textContent = "Method saved. New trips will use this workflow.";
+  render();
+});
 $("#appearance-theme").addEventListener("change", async (event) => {
   const control = event.currentTarget;
   const previousTheme = window.TravelLogTheme.normalize(currentProfile?.appearance_theme);
@@ -423,7 +489,7 @@ $("#saved-location-list").addEventListener("click", async (event) => {
   if (error) return alert(`Location could not be removed: ${error.message}`);
   await loadSavedLocations();
 });
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
 $("#delete-account").addEventListener("click", async () => {
   if ($("#delete-confirmation").value.trim() !== "DELETE") return alert("Type DELETE exactly to confirm permanent account deletion.");
   if (!confirm("Permanently delete your account and every saved trip? This cannot be undone.")) return;
@@ -474,15 +540,16 @@ $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
 $("#add-stop-button").addEventListener("click", () => addStop());
-$("#claim-method").addEventListener("change", updateClaimMethod);
-$("#trip-date").addEventListener("change", updateClaimMethod);
+$("#trip-date").addEventListener("change", updateTripModeTip);
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const saveButton = form.querySelector('button[type="submit"]');
   const id = $("#trip-id").value || crypto.randomUUID();
   const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
-  const claimMethod = $("#claim-method").value;
+  const recordingMode = normalizeRecordingMode(form.dataset.recordingMode);
+  const employerRate = Number($("#rate-cents").value || 0);
+  const claimMethod = recordingMode === "general" ? (employerRate > 0 ? "employer" : "record_only") : recordingMode;
   const trip = { id, date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
   const validationError = validateTrip(trip);
   if (validationError) return alert(validationError);

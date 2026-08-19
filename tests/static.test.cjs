@@ -19,10 +19,15 @@ test("production pages load pinned and local scripts in the required order", () 
 });
 
 test("privacy, report and migration assets are present", () => {
-  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/appearance-theme-migration.sql"]) {
+  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/appearance-theme-migration.sql", "supabase/recording-mode-migration.sql"]) {
     assert.ok(fs.existsSync(path.join(root, name)), name);
   }
   assert.match(read("supabase/appearance-theme-migration.sql"), /appearance_theme in \('light', 'dark', 'system'\)/);
   assert.match(read("supabase/appearance-theme-migration.sql"), /notify pgrst, 'reload schema'/);
   assert.match(read("app.js"), /appearance_theme/);
+  assert.match(read("supabase/recording-mode-migration.sql"), /recording_mode in \('general', 'ato_cents', 'ato_logbook'\)/);
+  assert.match(read("supabase/recording-mode-migration.sql"), /notify pgrst, 'reload schema'/);
+  assert.match(read("app.js"), /recording_mode/);
+  assert.match(read("index.html"), /id="recording-mode"/);
+  assert.match(read("index.html"), /id="claim-method" type="hidden"/);
 });

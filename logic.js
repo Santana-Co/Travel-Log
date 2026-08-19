@@ -6,6 +6,12 @@
     return Number.isFinite(start) && Number.isFinite(end) && end > start ? end - start : 0;
   }
   function totalDistance(trip) { return odometerDistance(trip) || number(trip.distance) * (trip.roundTrip ? 2 : 1); }
+  function normalizeRecordingMode(mode) { return ["general", "ato_cents", "ato_logbook"].includes(mode) ? mode : "general"; }
+  function recordingModeForTrip(trip) {
+    if (trip?.claimMethod === "ato_cents") return "ato_cents";
+    if (trip?.claimMethod === "ato_logbook") return "ato_logbook";
+    return "general";
+  }
   function atoIncomeYear(date) {
     const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(String(date || ""));
     if (!match) return "";
@@ -108,7 +114,7 @@
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, odometerDistance, totalDistance, validateLogbookPeriod, validateTrip };
+  const api = { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

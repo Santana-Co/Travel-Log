@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, totalDistance, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = require("../logic.js");
 
 const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
 
@@ -23,6 +23,16 @@ test("calculates and validates a 12-week ATO logbook period", () => {
   assert.equal(validateLogbookPeriod(period), "");
   assert.match(validateLogbookPeriod({ ...period, endDate: "2026-08-01" }), /12 continuous weeks/i);
   assert.deepEqual(logbookSummary(period, [{ ...validTrip, date: "2026-08-20", claimMethod: "ato_logbook", vehicleRegistration: "123ABC", odometerStart: 10100, odometerEnd: 10200 }]), { businessKilometres: 100, totalKilometres: 2000, businessUsePercent: 5 });
+});
+
+test("normalizes profile recording modes and preserves each trip's original workflow", () => {
+  assert.equal(normalizeRecordingMode(), "general");
+  assert.equal(normalizeRecordingMode("unsupported"), "general");
+  assert.equal(normalizeRecordingMode("ato_cents"), "ato_cents");
+  assert.equal(normalizeRecordingMode("ato_logbook"), "ato_logbook");
+  assert.equal(recordingModeForTrip({ claimMethod: "employer" }), "general");
+  assert.equal(recordingModeForTrip({ claimMethod: "ato_cents" }), "ato_cents");
+  assert.equal(recordingModeForTrip({ claimMethod: "ato_logbook" }), "ato_logbook");
 });
 
 test("filters across date, client and text fields", () => {

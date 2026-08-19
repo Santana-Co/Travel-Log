@@ -7,6 +7,7 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 - Add, edit, search, and delete trips
 - Create an account and use trips across devices
 - Choose Light, Dark, or System appearance and keep the preference across devices
+- Choose Employer/general, ATO cents-per-kilometre, or ATO logbook/odometer recording and keep the preference across devices
 - Add multiple stops to a trip
 - Track start and end addresses, date, one-way distance, notes, and round-trip status
 - Open each route in Google Maps to confirm the driving distance
@@ -34,7 +35,9 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
 
-Run the migration files in `supabase/` once in release order: privacy/security, reporting, stabilization, ATO/logbook, then appearance/theme. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, private saved locations and logbooks, validation constraints, a cross-device appearance preference, and hardened database functions. Never place a Supabase service-role key in this repository or in browser code.
+Run the migration files in `supabase/` once in release order: privacy/security, reporting, stabilization, ATO/logbook, appearance/theme, then recording mode. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, private saved locations and logbooks, validation constraints, cross-device appearance and recording preferences, and hardened database functions. Never place a Supabase service-role key in this repository or in browser code.
+
+Changing the recording method affects new-trip fields, guidance, dashboard estimates, and report summaries. Existing trips retain the workflow under which they were recorded, so switching methods does not discard or silently relabel historical records.
 
 ATO figures are estimates only. The app currently recognises the 88¢ rate for 2024–25 and 2025–26 and the 91¢ rate for 2026–27, and applies the 5,000 work-kilometre annual cap per vehicle to the summary. Users remain responsible for eligibility and supporting records.
 
