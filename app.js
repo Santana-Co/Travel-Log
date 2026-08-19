@@ -27,6 +27,12 @@ function escapeHtml(value) { const node = document.createElement("span"); node.t
 function escapeAttribute(value) { return escapeHtml(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
 function setMessage(message, isError = false) { const element = $("#auth-message"); element.textContent = message; element.classList.toggle("error", isError); }
 function setButtonBusy(button, busy, busyText) { if (!button.dataset.label) button.dataset.label = button.textContent; button.disabled = busy; button.textContent = busy ? busyText : button.dataset.label; }
+function applyTheme(theme) {
+  const selected = window.TravelLogTheme.apply(theme);
+  const control = $("#appearance-theme");
+  if (control) control.value = selected;
+  return selected;
+}
 function passwordError(password) {
   if (password.length < 12) return "Password must be at least 12 characters long.";
   if (!/[a-z]/.test(password)) return "Password must include a lowercase letter.";
@@ -132,9 +138,10 @@ async function migrateLocalTrips() {
 }
 
 async function ensurePrivacyAccepted() {
-  const { data, error } = await db.from("profiles").select("id, full_name, privacy_version, privacy_accepted_at").eq("id", currentUser.id).single();
+  const { data, error } = await db.from("profiles").select("id, full_name, privacy_version, privacy_accepted_at, appearance_theme").eq("id", currentUser.id).single();
   if (error) throw new Error(`Privacy settings could not be loaded. ${error.message}`);
   currentProfile = data;
+  applyTheme(data.appearance_theme);
   if (data.privacy_version === privacyVersion && data.privacy_accepted_at) return true;
   if (currentUser.user_metadata?.privacy_version === privacyVersion && currentUser.user_metadata?.privacy_accepted_at) {
     const { error: acceptanceError } = await db.rpc("accept_privacy_notice", { notice_version: privacyVersion });
@@ -291,6 +298,8 @@ function downloadJson(filename, value) { downloadBlob(filename, new Blob([JSON.s
 function openAccount() {
   $("#account-full-name").textContent = currentProfile?.full_name || currentUser.user_metadata?.full_name || "Not provided";
   $("#account-email").textContent = currentUser.email;
+  $("#appearance-theme").value = window.TravelLogTheme.normalize(currentProfile?.appearance_theme);
+  $("#appearance-message").textContent = "";
   $("#delete-confirmation").value = "";
   accountDialog.showModal();
 }
@@ -379,6 +388,25 @@ $("#sign-out-button").addEventListener("click", () => db.auth.signOut());
 $("#account-button").addEventListener("click", openAccount);
 $("#account-form").addEventListener("submit", (event) => event.preventDefault());
 $("#close-account").addEventListener("click", () => accountDialog.close());
+$("#appearance-theme").addEventListener("change", async (event) => {
+  const control = event.currentTarget;
+  const previousTheme = window.TravelLogTheme.normalize(currentProfile?.appearance_theme);
+  const nextTheme = applyTheme(control.value);
+  const message = $("#appearance-message");
+  control.disabled = true;
+  message.textContent = "Saving appearance…";
+  const { error } = await db.from("profiles").update({ appearance_theme: nextTheme }).eq("id", currentUser.id);
+  control.disabled = false;
+  if (error) {
+    applyTheme(previousTheme);
+    message.textContent = `Appearance could not be saved: ${error.message}`;
+    message.classList.add("error");
+    return;
+  }
+  currentProfile = { ...currentProfile, appearance_theme: nextTheme };
+  message.classList.remove("error");
+  message.textContent = "Appearance saved.";
+});
 $("#add-location").addEventListener("click", addSavedLocation);
 $("#add-logbook").addEventListener("click", addLogbookPeriod);
 $("#logbook-list").addEventListener("click", async (event) => {
@@ -395,7 +423,7 @@ $("#saved-location-list").addEventListener("click", async (event) => {
   if (error) return alert(`Location could not be removed: ${error.message}`);
   await loadSavedLocations();
 });
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
 $("#delete-account").addEventListener("click", async () => {
   if ($("#delete-confirmation").value.trim() !== "DELETE") return alert("Type DELETE exactly to confirm permanent account deletion.");
   if (!confirm("Permanently delete your account and every saved trip? This cannot be undone.")) return;

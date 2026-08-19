@@ -10,14 +10,18 @@ test("production pages load pinned and local scripts in the required order", () 
   const index = read("index.html");
   assert.match(index, /@supabase\/supabase-js@2\.112\.3/);
   assert.match(index, /integrity="sha384-/);
+  assert.ok(index.indexOf("theme.js") < index.indexOf("styles.css"));
   assert.ok(index.indexOf("logic.js") < index.indexOf("app.js"));
   assert.match(index, /Content-Security-Policy/);
   const report = read("report.html");
+  assert.ok(report.indexOf("theme.js") < report.indexOf("report.css"));
   assert.ok(report.indexOf("logic.js") < report.indexOf("report.js"));
 });
 
 test("privacy, report and migration assets are present", () => {
-  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql"]) {
+  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/appearance-theme-migration.sql"]) {
     assert.ok(fs.existsSync(path.join(root, name)), name);
   }
+  assert.match(read("supabase/appearance-theme-migration.sql"), /appearance_theme in \('light', 'dark', 'system'\)/);
+  assert.match(read("app.js"), /appearance_theme/);
 });
