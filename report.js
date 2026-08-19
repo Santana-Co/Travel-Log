@@ -1,13 +1,11 @@
 const payloadText = sessionStorage.getItem("travel-log-print-report");
 sessionStorage.removeItem("travel-log-print-report");
 const $ = (selector) => document.querySelector(selector);
+const { claimAmount, totalDistance } = TravelLogLogic;
 const formatKm = (value) => `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`;
 const formatMoney = (value) => new Intl.NumberFormat(undefined, { style: "currency", currency: "AUD" }).format(value);
 const formatDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 const escapeHtml = (value) => { const node = document.createElement("span"); node.textContent = value ?? ""; return node.innerHTML; };
-
-function totalDistance(trip) { return Number(trip.distance) * (trip.roundTrip ? 2 : 1); }
-function claimAmount(trip) { return totalDistance(trip) * Number(trip.rateCents || 0) / 100; }
 
 if (!payloadText) {
   $("#report-content").hidden = true;

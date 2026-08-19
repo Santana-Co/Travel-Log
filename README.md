@@ -30,7 +30,7 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
 
-Run the migration files in `supabase/` once in filename order before deploying their matching frontend releases. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, and private saved locations. Never place a Supabase service-role key in this repository or in browser code.
+Run the migration files in `supabase/` once in release order: privacy/security, reporting, then stabilization. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, private saved locations, validation constraints, and hardened database functions. Never place a Supabase service-role key in this repository or in browser code.
 
 ## Publish with GitHub Pages
 

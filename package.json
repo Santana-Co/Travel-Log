@@ -1,0 +1,8 @@
+{
+  "name": "santana-co-travel-log",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test && node --check app.js && node --check report.js && node --check logic.js"
+  }
+}

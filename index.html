@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A simple work travel log." />
+    <meta name="referrer" content="no-referrer" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; connect-src 'self' https://caqgnnlgtomcmkpafvoc.supabase.co wss://caqgnnlgtomcmkpafvoc.supabase.co https://travel-log-distance-api.jfsantana0691.workers.dev; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests" />
     <title>Travel Log</title>
     <link rel="stylesheet" href="styles.css" />
@@ -59,6 +60,7 @@
           <label>To<input id="filter-to" type="date" /></label>
           <label>Client or project<input id="filter-client" type="search" placeholder="All clients" /></label>
         </div>
+        <p id="filter-message" class="filter-message" role="status"></p>
         <div class="report-actions"><button id="clear-filters" class="text-button" type="button">Clear filters</button><button id="export-button" class="button secondary" type="button">Export CSV</button><button id="print-report" class="button primary" type="button">Print / Save PDF</button></div>
       </section>
 
@@ -83,16 +85,16 @@
         <input id="trip-id" type="hidden" />
         <div class="form-grid">
           <label>Trip date<input id="trip-date" type="date" required /></label>
-          <label>One-way distance (km)<span class="distance-input"><input id="distance" type="number" min="0" step="0.1" placeholder="e.g. 24.5" required /><button type="button" id="calculate-distance" class="button secondary">Calculate</button></span></label>
+          <label>One-way distance (km)<span class="distance-input"><input id="distance" type="number" min="0.1" max="100000" step="0.1" placeholder="e.g. 24.5" required /><button type="button" id="calculate-distance" class="button secondary">Calculate</button></span></label>
           <label>Trip purpose<select id="purpose"><option value="">Select a purpose</option><option>Client visit</option><option>Site visit</option><option>Delivery</option><option>Training</option><option>Meeting</option><option>Other</option></select></label>
-          <label>Client or project<input id="client-project" type="text" placeholder="e.g. Redlands project" /></label>
-          <label>Vehicle (optional)<input id="vehicle" type="text" placeholder="e.g. Toyota Hilux" /></label>
+          <label>Client or project<input id="client-project" type="text" maxlength="120" placeholder="e.g. Redlands project" /></label>
+          <label>Vehicle (optional)<input id="vehicle" type="text" maxlength="120" placeholder="e.g. Toyota Hilux" /></label>
           <label>Reimbursement rate (cents/km)<input id="rate-cents" type="number" min="0" max="1000" step="0.1" placeholder="e.g. 88" /></label>
-          <label class="full-width">Starting address<input id="start-address" type="text" list="saved-addresses" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
+          <label class="full-width">Starting address<input id="start-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
           <div class="full-width stops-field"><div class="stops-heading"><span>Stops on the way (optional)</span><button type="button" id="add-stop-button" class="text-button">+ Add stop</button></div><div id="stops-list" class="stops-list"></div></div>
-          <label class="full-width">Ending address<input id="end-address" type="text" list="saved-addresses" placeholder="e.g. Client office, Gold Coast" required /></label>
+          <label class="full-width">Ending address<input id="end-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. Client office, Gold Coast" required /></label>
           <label class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
-          <label class="full-width">Notes (optional)<textarea id="notes" rows="3" placeholder="Client meeting, site visit, project name…"></textarea></label>
+          <label class="full-width">Notes (optional)<textarea id="notes" rows="3" maxlength="2000" placeholder="Client meeting, site visit, project name…"></textarea></label>
         </div>
         <p id="route-tip" class="route-tip">Calculate uses the shared route service to estimate the driving distance.</p>
         <div class="dialog-actions"><button type="button" id="cancel-button" class="button secondary">Cancel</button><button class="button primary" type="submit">Save trip</button></div>
@@ -110,7 +112,7 @@
     </dialog>
 
     <dialog id="account-dialog" aria-labelledby="account-dialog-title">
-      <form method="dialog">
+      <form id="account-form" method="dialog">
         <div class="dialog-heading"><div><p class="eyebrow">YOUR ACCOUNT</p><h2 id="account-dialog-title">Account and privacy</h2></div><button type="button" id="close-account" class="icon-button" aria-label="Close">×</button></div>
         <dl class="account-details"><div><dt>Name</dt><dd id="account-full-name"></dd></div><div><dt>Email</dt><dd id="account-email"></dd></div></dl>
         <section class="account-section"><h3>Saved locations</h3><p>Save frequently used addresses for faster trip entry.</p><div class="saved-location-form"><label>Location name<input id="location-label" type="text" maxlength="80" placeholder="e.g. Home or Brisbane office" /></label><label>Address<input id="location-address" type="text" maxlength="250" placeholder="Full street address" /></label><button id="add-location" type="button" class="button secondary">Save location</button></div><div id="saved-location-list" class="saved-location-list"></div></section>
@@ -119,9 +121,20 @@
       </form>
     </dialog>
 
+    <dialog id="reset-password-dialog" aria-labelledby="reset-password-title">
+      <form id="reset-password-form" method="dialog">
+        <div class="dialog-heading"><div><p class="eyebrow">SECURE YOUR ACCOUNT</p><h2 id="reset-password-title">Choose a new password</h2></div></div>
+        <div class="form-grid"><label class="full-width">New password<input id="new-password" type="password" autocomplete="new-password" minlength="12" required /></label><label class="full-width">Confirm new password<input id="confirm-password" type="password" autocomplete="new-password" minlength="12" required /></label></div>
+        <p class="route-tip">Use at least 12 characters with uppercase, lowercase, a number, and a symbol.</p>
+        <p id="reset-password-message" class="status-message error" role="status"></p>
+        <div class="dialog-actions"><button id="cancel-password-reset" type="button" class="button secondary">Cancel</button><button id="save-new-password" type="submit" class="button primary">Update password</button></div>
+      </form>
+    </dialog>
+
     <datalist id="saved-addresses"></datalist>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3" integrity="sha384-l8ah+VgaWtk1mvOe9VC+OirC6qHFF4yH7l7mKRidV9MSti3E9F463bMp6ZVN4kuC" crossorigin="anonymous"></script>
+    <script src="logic.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

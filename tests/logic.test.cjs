@@ -1,0 +1,34 @@
+const assert = require("node:assert/strict");
+const test = require("node:test");
+const { claimAmount, csvCell, filterError, filterTrips, totalDistance, validateTrip } = require("../logic.js");
+
+const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
+
+test("calculates round-trip distance and claim", () => {
+  assert.equal(totalDistance(validTrip), 100);
+  assert.equal(claimAmount(validTrip), 88);
+});
+
+test("filters across date, client and text fields", () => {
+  const trips = [validTrip, { ...validTrip, date: "2026-07-01", clientProject: "Project B", purpose: "Training" }];
+  assert.equal(filterTrips(trips, { from: "2026-08-01", to: "2026-08-31" }).length, 1);
+  assert.equal(filterTrips(trips, { client: "project b" }).length, 1);
+  assert.equal(filterTrips(trips, { query: "training" }).length, 1);
+});
+
+test("validates filter ranges and trip bounds", () => {
+  assert.match(filterError("2026-09-01", "2026-08-01"), /From date/);
+  assert.equal(validateTrip(validTrip), "");
+  assert.match(validateTrip({ ...validTrip, distance: 0 }), /Distance/);
+  assert.match(validateTrip({ ...validTrip, stops: Array(9).fill("Valid stop") }), /8/);
+  assert.match(validateTrip({ ...validTrip, rateCents: 1001 }), /rate/);
+  assert.match(validateTrip({ ...validTrip, date: "2026-02-30" }), /valid trip date/i);
+});
+
+test("neutralizes spreadsheet formulas in CSV cells", () => {
+  for (const value of ["=1+1", "+cmd", "-2+3", "@SUM(A1:A2)", "  =HYPERLINK(\"bad\")"]) {
+    assert.ok(csvCell(value).startsWith('"\''), value);
+  }
+  assert.equal(csvCell('Client "A"'), '"Client ""A"""');
+  assert.ok(csvCell("\n@SUM(A1:A2)").startsWith('"\''));
+});
