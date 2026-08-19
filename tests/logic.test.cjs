@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = require("../logic.js");
 
 const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
 
@@ -16,6 +16,20 @@ test("applies current ATO rates, odometer distance, and the annual 5,000 km cap"
   assert.equal(totalDistance({ ...validTrip, odometerStart: 1000, odometerEnd: 1062.5 }), 62.5);
   const atoTrips = [{ ...validTrip, roundTrip: false, distance: 3000, claimMethod: "ato_cents", vehicleRegistration: "123ABC", date: "2026-08-20" }, { ...validTrip, roundTrip: false, distance: 2500, claimMethod: "ato_cents", vehicleRegistration: "123ABC", date: "2027-01-20" }];
   assert.deepEqual(claimSummary(atoTrips), { atoCents: 4550, cappedKilometres: 500, employer: 0, total: 4550 });
+});
+
+test("selects historical ATO rates from the trip date and stops at unpublished years", () => {
+  assert.equal(Object.isFrozen(atoCentsRates), true);
+  assert.equal(atoRateForDate("2015-07-01"), 66);
+  assert.equal(atoRateForDate("2018-07-01"), 68);
+  assert.equal(atoRateForDate("2020-07-01"), 72);
+  assert.equal(atoRateForDate("2022-07-01"), 78);
+  assert.equal(atoRateForDate("2023-07-01"), 85);
+  assert.equal(atoRateForDate("2024-07-01"), 88);
+  assert.equal(atoRateForDate("2026-06-30"), 88);
+  assert.equal(atoRateForDate("2026-07-01"), 91);
+  assert.equal(atoRateForDate("2027-06-30"), 91);
+  assert.equal(atoRateForDate("2027-07-01"), null);
 });
 
 test("uses the selected ATO cents mode for trips created under an earlier workflow", () => {

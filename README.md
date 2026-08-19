@@ -39,7 +39,7 @@ Run the migration files in `supabase/` once in release order: privacy/security, 
 
 Changing the recording method affects new-trip fields, guidance, dashboard estimates, and report summaries. Existing trips retain the workflow under which they were recorded, so switching methods does not discard or silently relabel historical records.
 
-ATO figures are estimates only. The app currently recognises the 88¢ rate for 2024–25 and 2025–26 and the 91¢ rate for 2026–27, and applies the 5,000 work-kilometre annual cap per vehicle to the summary. Users remain responsible for eligibility and supporting records.
+ATO figures are estimates only. The app selects the published rate from each trip's income year, supports backdated trips from 2015–16 onward, and applies the 5,000 work-kilometre annual cap per vehicle and income year. It deliberately refuses to estimate an unpublished future year rather than carrying forward an outdated rate. Add each newly published ATO rate to the isolated `atoCentsRates` schedule in `logic.js`, with financial-year boundary tests, before enabling that year. Users remain responsible for eligibility and supporting records.
 
 ## Publish with GitHub Pages
 

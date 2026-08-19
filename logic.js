@@ -1,4 +1,18 @@
 (function exposeTravelLogLogic(root) {
+  const atoCentsRates = Object.freeze({
+    "2015–16": 66,
+    "2016–17": 66,
+    "2017–18": 66,
+    "2018–19": 68,
+    "2019–20": 68,
+    "2020–21": 72,
+    "2021–22": 72,
+    "2022–23": 78,
+    "2023–24": 85,
+    "2024–25": 88,
+    "2025–26": 88,
+    "2026–27": 91,
+  });
   function number(value) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
   function odometerDistance(trip) {
     const start = Number(trip.odometerStart);
@@ -21,9 +35,7 @@
   }
   function atoRateForDate(date) {
     const year = atoIncomeYear(date);
-    if (year === "2026–27") return 91;
-    if (year === "2025–26" || year === "2024–25") return 88;
-    return null;
+    return Object.prototype.hasOwnProperty.call(atoCentsRates, year) ? atoCentsRates[year] : null;
   }
   function claimMethodForMode(trip, recordingMode) {
     const selected = normalizeRecordingMode(recordingMode);
@@ -120,7 +132,7 @@
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip };
+  const api = { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);
