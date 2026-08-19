@@ -17,3 +17,6 @@ begin
   end if;
 end;
 $$;
+
+-- Make the new column available to the Supabase REST API immediately.
+notify pgrst, 'reload schema';

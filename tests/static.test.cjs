@@ -23,5 +23,6 @@ test("privacy, report and migration assets are present", () => {
     assert.ok(fs.existsSync(path.join(root, name)), name);
   }
   assert.match(read("supabase/appearance-theme-migration.sql"), /appearance_theme in \('light', 'dark', 'system'\)/);
+  assert.match(read("supabase/appearance-theme-migration.sql"), /notify pgrst, 'reload schema'/);
   assert.match(read("app.js"), /appearance_theme/);
 });
