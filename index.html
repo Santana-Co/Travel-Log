@@ -49,11 +49,17 @@
         <article><span>Total trips</span><strong id="trip-count">0</strong></article>
         <article><span>Total distance</span><strong id="total-distance">0 km</strong></article>
         <article><span>This month</span><strong id="month-distance">0 km</strong></article>
+        <article><span>Claim estimate</span><strong id="claim-total">$0.00</strong></article>
       </section>
 
-      <section class="toolbar" aria-label="Trip controls">
-        <label class="search"><span class="sr-only">Search trips</span><input id="search" type="search" placeholder="Search addresses or notes" /></label>
-        <button id="export-button" class="button secondary">Export CSV</button>
+      <section class="report-controls" aria-label="Trip filters and reports">
+        <div class="filter-grid">
+          <label class="search">Search<input id="search" type="search" placeholder="Addresses, purpose, client, vehicle or notes" /></label>
+          <label>From<input id="filter-from" type="date" /></label>
+          <label>To<input id="filter-to" type="date" /></label>
+          <label>Client or project<input id="filter-client" type="search" placeholder="All clients" /></label>
+        </div>
+        <div class="report-actions"><button id="clear-filters" class="text-button" type="button">Clear filters</button><button id="export-button" class="button secondary" type="button">Export CSV</button><button id="print-report" class="button primary" type="button">Print / Save PDF</button></div>
       </section>
 
       <section class="trips-section">
@@ -78,9 +84,13 @@
         <div class="form-grid">
           <label>Trip date<input id="trip-date" type="date" required /></label>
           <label>One-way distance (km)<span class="distance-input"><input id="distance" type="number" min="0" step="0.1" placeholder="e.g. 24.5" required /><button type="button" id="calculate-distance" class="button secondary">Calculate</button></span></label>
-          <label class="full-width">Starting address<input id="start-address" type="text" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
+          <label>Trip purpose<select id="purpose"><option value="">Select a purpose</option><option>Client visit</option><option>Site visit</option><option>Delivery</option><option>Training</option><option>Meeting</option><option>Other</option></select></label>
+          <label>Client or project<input id="client-project" type="text" placeholder="e.g. Redlands project" /></label>
+          <label>Vehicle (optional)<input id="vehicle" type="text" placeholder="e.g. Toyota Hilux" /></label>
+          <label>Reimbursement rate (cents/km)<input id="rate-cents" type="number" min="0" max="1000" step="0.1" placeholder="e.g. 88" /></label>
+          <label class="full-width">Starting address<input id="start-address" type="text" list="saved-addresses" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
           <div class="full-width stops-field"><div class="stops-heading"><span>Stops on the way (optional)</span><button type="button" id="add-stop-button" class="text-button">+ Add stop</button></div><div id="stops-list" class="stops-list"></div></div>
-          <label class="full-width">Ending address<input id="end-address" type="text" placeholder="e.g. Client office, Gold Coast" required /></label>
+          <label class="full-width">Ending address<input id="end-address" type="text" list="saved-addresses" placeholder="e.g. Client office, Gold Coast" required /></label>
           <label class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
           <label class="full-width">Notes (optional)<textarea id="notes" rows="3" placeholder="Client meeting, site visit, project name…"></textarea></label>
         </div>
@@ -103,10 +113,13 @@
       <form method="dialog">
         <div class="dialog-heading"><div><p class="eyebrow">YOUR ACCOUNT</p><h2 id="account-dialog-title">Account and privacy</h2></div><button type="button" id="close-account" class="icon-button" aria-label="Close">×</button></div>
         <dl class="account-details"><div><dt>Name</dt><dd id="account-full-name"></dd></div><div><dt>Email</dt><dd id="account-email"></dd></div></dl>
+        <section class="account-section"><h3>Saved locations</h3><p>Save frequently used addresses for faster trip entry.</p><div class="saved-location-form"><label>Location name<input id="location-label" type="text" maxlength="80" placeholder="e.g. Home or Brisbane office" /></label><label>Address<input id="location-address" type="text" maxlength="250" placeholder="Full street address" /></label><button id="add-location" type="button" class="button secondary">Save location</button></div><div id="saved-location-list" class="saved-location-list"></div></section>
         <section class="account-section"><h3>Your information</h3><p>Download a JSON copy of your profile, privacy acknowledgement, and all saved trips.</p><button id="download-data" type="button" class="button secondary">Download my data</button></section>
         <section class="account-section danger-section"><h3>Delete account</h3><p>This permanently deletes your profile and trips. It cannot be undone.</p><label>Type DELETE to confirm<input id="delete-confirmation" type="text" autocomplete="off" /></label><button id="delete-account" type="button" class="button danger">Permanently delete my account</button></section>
       </form>
     </dialog>
+
+    <datalist id="saved-addresses"></datalist>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3"></script>
     <script src="app.js"></script>

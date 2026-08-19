@@ -14,6 +14,10 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 - Export all records to a CSV report
 - Download account data and permanently delete an account
 - Review and acknowledge the Privacy & Security Notice
+- Filter trips by date and client or project
+- Track purpose, vehicle, and an optional reimbursement rate
+- Export filtered CSV reports or print a clean report to PDF
+- Duplicate frequent trips and keep private saved locations
 
 ## Run it on your computer
 
@@ -26,7 +30,7 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
 
-Before deploying this release, run `supabase/privacy-security-migration.sql` once in the Supabase SQL Editor. It adds versioned privacy acknowledgement and self-service account deletion. Never place a Supabase service-role key in this repository or in browser code.
+Run the migration files in `supabase/` once in filename order before deploying their matching frontend releases. They add versioned privacy acknowledgement, self-service account deletion, reporting fields, and private saved locations. Never place a Supabase service-role key in this repository or in browser code.
 
 ## Publish with GitHub Pages
 

@@ -2,7 +2,7 @@ const storageKey = "travel-log-trips";
 const supabaseUrl = "https://caqgnnlgtomcmkpafvoc.supabase.co";
 const supabasePublishableKey = "sb_publishable_QH3nXDysJyTfg61qv_h98w_-SergW2w";
 const distanceApiUrl = "https://travel-log-distance-api.jfsantana0691.workers.dev/distance";
-const privacyVersion = "2026-08-19";
+const privacyVersion = "2026-08-19-reporting";
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#trip-dialog");
@@ -11,15 +11,19 @@ const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 
 let trips = [];
+let savedLocations = [];
 let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
 let privacyResolver = null;
 
 function totalDistance(trip) { return Number(trip.distance) * (trip.roundTrip ? 2 : 1); }
+function claimAmount(trip) { return totalDistance(trip) * Number(trip.rateCents || 0) / 100; }
 function formatKm(value) { return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`; }
+function formatMoney(value) { return new Intl.NumberFormat(undefined, { style: "currency", currency: "AUD" }).format(value); }
 function displayDate(value) { return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); }
 function escapeHtml(value) { const node = document.createElement("span"); node.textContent = value; return node.innerHTML; }
+function escapeAttribute(value) { return escapeHtml(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
 function setMessage(message, isError = false) { const element = $("#auth-message"); element.textContent = message; element.classList.toggle("error", isError); }
 function setButtonBusy(button, busy, busyText) { if (!button.dataset.label) button.dataset.label = button.textContent; button.disabled = busy; button.textContent = busy ? busyText : button.dataset.label; }
 function passwordError(password) {
@@ -32,30 +36,43 @@ function passwordError(password) {
 }
 
 function fromDatabase(row) {
-  return { id: row.id, date: row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, notes: row.notes || "" };
+  return { id: row.id, date: row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", rateCents: Number(row.rate_cents || 0), notes: row.notes || "" };
 }
 
 function toDatabase(trip) {
-  return { id: trip.id, user_id: currentUser.id, trip_date: trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, notes: trip.notes };
+  return { id: trip.id, user_id: currentUser.id, trip_date: trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, rate_cents: Number(trip.rateCents || 0), notes: trip.notes };
+}
+
+function filteredTrips() {
+  const query = $("#search").value.toLowerCase().trim();
+  const client = $("#filter-client").value.toLowerCase().trim();
+  const from = $("#filter-from").value;
+  const to = $("#filter-to").value;
+  return trips.filter((trip) => {
+    const searchable = `${trip.start} ${(trip.stops || []).join(" ")} ${trip.end} ${trip.purpose} ${trip.clientProject} ${trip.vehicle} ${trip.notes}`.toLowerCase();
+    return (!query || searchable.includes(query)) && (!client || trip.clientProject.toLowerCase().includes(client)) && (!from || trip.date >= from) && (!to || trip.date <= to);
+  });
 }
 
 function render() {
-  const query = $("#search").value.toLowerCase().trim();
-  const matchingTrips = trips.filter((trip) => `${trip.start} ${(trip.stops || []).join(" ")} ${trip.end} ${trip.notes}`.toLowerCase().includes(query));
-  const total = trips.reduce((sum, trip) => sum + totalDistance(trip), 0);
+  const matchingTrips = filteredTrips();
+  const total = matchingTrips.reduce((sum, trip) => sum + totalDistance(trip), 0);
   const today = new Date();
-  const monthTotal = trips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
-  $("#trip-count").textContent = trips.length;
+  const monthTotal = matchingTrips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
+  const claims = matchingTrips.reduce((sum, trip) => sum + claimAmount(trip), 0);
+  $("#trip-count").textContent = matchingTrips.length;
   $("#total-distance").textContent = formatKm(total);
   $("#month-distance").textContent = formatKm(monthTotal);
-  $("#trip-label").textContent = trips.length === 1 ? "1 trip" : `${trips.length} trips`;
+  $("#claim-total").textContent = formatMoney(claims);
+  $("#trip-label").textContent = matchingTrips.length === trips.length ? (trips.length === 1 ? "1 trip" : `${trips.length} trips`) : `${matchingTrips.length} of ${trips.length} trips`;
   $("#empty-state").hidden = trips.length > 0;
   $("#trip-list").innerHTML = matchingTrips.map((trip) => {
     const stops = trip.stops || [];
     const waypoints = stops.length ? `&waypoints=${encodeURIComponent(stops.join("|"))}` : "";
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}${waypoints}&travelmode=driving`;
-    return `<article class="trip"><div class="trip-date">${displayDate(trip.date)}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div><p class="trip-details">${formatKm(totalDistance(trip))}${trip.roundTrip ? " · round trip" : " · one way"}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener">Route</a><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
-  }).join("");
+    const workDetails = [trip.purpose, trip.clientProject, trip.vehicle].filter(Boolean).map(escapeHtml).join(" · ");
+    return `<article class="trip"><div class="trip-date">${displayDate(trip.date)}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div>${workDetails ? `<p class="trip-details">${workDetails}</p>` : ""}<p class="trip-details">${formatKm(totalDistance(trip))}${trip.roundTrip ? " · round trip" : " · one way"}${trip.rateCents ? ` · ${formatMoney(claimAmount(trip))} claim` : ""}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener">Route</a><button class="text-button" data-duplicate="${trip.id}">Duplicate</button><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
+  }).join("") || (trips.length ? `<div class="empty-state"><h3>No matching trips</h3><p>Clear or change the filters to see more records.</p></div>` : "");
 }
 
 async function loadTrips() {
@@ -63,6 +80,18 @@ async function loadTrips() {
   if (error) throw error;
   trips = data.map(fromDatabase);
   render();
+}
+
+function renderSavedLocations() {
+  $("#saved-addresses").innerHTML = savedLocations.map((location) => `<option value="${escapeAttribute(location.address)}" label="${escapeAttribute(location.label)}"></option>`).join("");
+  $("#saved-location-list").innerHTML = savedLocations.length ? savedLocations.map((location) => `<div class="saved-location"><div><strong>${escapeHtml(location.label)}</strong><span>${escapeHtml(location.address)}</span></div><button type="button" class="text-button" data-delete-location="${location.id}">Remove</button></div>`).join("") : `<p>No saved locations yet.</p>`;
+}
+
+async function loadSavedLocations() {
+  const { data, error } = await db.from("saved_locations").select("id, label, address").order("label");
+  if (error) throw error;
+  savedLocations = data || [];
+  renderSavedLocations();
 }
 
 async function migrateLocalTrips() {
@@ -106,7 +135,7 @@ async function showApp(user) {
   try {
     const accepted = await ensurePrivacyAccepted();
     if (!accepted) return;
-    await loadTrips();
+    await Promise.all([loadTrips(), loadSavedLocations()]);
     await migrateLocalTrips();
   }
   catch (error) { alert(`Trips could not be loaded: ${error.message}`); }
@@ -116,6 +145,7 @@ function showAuth() {
   currentUser = null;
   currentProfile = null;
   trips = [];
+  savedLocations = [];
   $("#auth-view").hidden = false;
   $("#app-view").hidden = true;
   $("#account-actions").hidden = true;
@@ -146,6 +176,7 @@ function addStop(value = "") {
   const input = document.createElement("input");
   input.className = "stop-address";
   input.type = "text";
+  input.setAttribute("list", "saved-addresses");
   input.placeholder = "Stop address";
   input.value = value;
   const remove = document.createElement("button");
@@ -157,12 +188,16 @@ function addStop(value = "") {
   $("#stops-list").append(row);
 }
 
-function openForm(trip) {
+function openForm(trip, duplicate = false) {
   form.reset();
-  $("#form-title").textContent = trip ? "Edit trip" : "Add a trip";
-  $("#trip-id").value = trip?.id || "";
-  $("#trip-date").value = trip?.date || new Date().toISOString().slice(0, 10);
+  $("#form-title").textContent = duplicate ? "Duplicate trip" : (trip ? "Edit trip" : "Add a trip");
+  $("#trip-id").value = duplicate ? "" : (trip?.id || "");
+  $("#trip-date").value = duplicate ? new Date().toISOString().slice(0, 10) : (trip?.date || new Date().toISOString().slice(0, 10));
   $("#distance").value = trip?.distance || "";
+  $("#purpose").value = trip?.purpose || "";
+  $("#client-project").value = trip?.clientProject || "";
+  $("#vehicle").value = trip?.vehicle || "";
+  $("#rate-cents").value = trip?.rateCents || "";
   $("#start-address").value = trip?.start || "";
   $("#stops-list").replaceChildren();
   (trip?.stops || []).forEach(addStop);
@@ -174,11 +209,21 @@ function openForm(trip) {
 
 function csvCell(value) { return `"${String(value).replaceAll('"', '""')}"`; }
 function exportCsv() {
-  if (!trips.length) return alert("Add at least one trip before exporting.");
-  const header = ["Date", "Start address", "Stops", "End address", "One-way distance (km)", "Round trip", "Total distance (km)", "Notes"];
-  const rows = trips.map((trip) => [trip.date, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", totalDistance(trip), trip.notes]);
+  const reportTrips = filteredTrips();
+  if (!reportTrips.length) return alert("No trips match the current filters.");
+  const header = ["Date", "Purpose", "Client or project", "Vehicle", "Start address", "Stops", "End address", "One-way distance (km)", "Round trip", "Total distance (km)", "Rate (cents/km)", "Claim estimate (AUD)", "Notes"];
+  const rows = reportTrips.map((trip) => [trip.date, trip.purpose, trip.clientProject, trip.vehicle, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", totalDistance(trip), trip.rateCents || "", claimAmount(trip).toFixed(2), trip.notes]);
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
   const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "travel-log-report.csv"; link.click(); URL.revokeObjectURL(link.href);
+}
+
+function openPrintableReport() {
+  const reportTrips = filteredTrips();
+  if (!reportTrips.length) return alert("No trips match the current filters.");
+  const payload = { generatedAt: new Date().toISOString(), user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, trips: reportTrips };
+  sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
+  const reportWindow = window.open("report.html", "_blank");
+  if (!reportWindow) alert("Allow pop-ups for Travel Log, then try Print / Save PDF again.");
 }
 
 function downloadJson(filename, value) {
@@ -194,6 +239,20 @@ function openAccount() {
   $("#account-email").textContent = currentUser.email;
   $("#delete-confirmation").value = "";
   accountDialog.showModal();
+}
+
+async function addSavedLocation() {
+  const label = $("#location-label").value.trim();
+  const address = $("#location-address").value.trim();
+  if (!label || !address) return alert("Enter both a location name and address.");
+  const button = $("#add-location");
+  setButtonBusy(button, true, "Saving…");
+  const { error } = await db.from("saved_locations").upsert({ user_id: currentUser.id, label, address }, { onConflict: "user_id,label" });
+  setButtonBusy(button, false);
+  if (error) return alert(`Location could not be saved: ${error.message}`);
+  $("#location-label").value = "";
+  $("#location-address").value = "";
+  await loadSavedLocations();
 }
 
 async function calculateDistance() {
@@ -250,7 +309,15 @@ $("#forgot-password").addEventListener("click", async () => {
 $("#sign-out-button").addEventListener("click", () => db.auth.signOut());
 $("#account-button").addEventListener("click", openAccount);
 $("#close-account").addEventListener("click", () => accountDialog.close());
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, trips }));
+$("#add-location").addEventListener("click", addSavedLocation);
+$("#saved-location-list").addEventListener("click", async (event) => {
+  const id = event.target.dataset.deleteLocation;
+  if (!id || !confirm("Remove this saved location? Existing trips will not be changed.")) return;
+  const { error } = await db.from("saved_locations").delete().eq("id", id);
+  if (error) return alert(`Location could not be removed: ${error.message}`);
+  await loadSavedLocations();
+});
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, trips }));
 $("#delete-account").addEventListener("click", async () => {
   if ($("#delete-confirmation").value.trim() !== "DELETE") return alert("Type DELETE exactly to confirm permanent account deletion.");
   if (!confirm("Permanently delete your account and every saved trip? This cannot be undone.")) return;
@@ -291,7 +358,12 @@ $("#empty-add-button").addEventListener("click", () => openForm());
 $("#close-button").addEventListener("click", () => dialog.close());
 $("#cancel-button").addEventListener("click", () => dialog.close());
 $("#search").addEventListener("input", render);
+$("#filter-from").addEventListener("input", render);
+$("#filter-to").addEventListener("input", render);
+$("#filter-client").addEventListener("input", render);
+$("#clear-filters").addEventListener("click", () => { $("#search").value = ""; $("#filter-from").value = ""; $("#filter-to").value = ""; $("#filter-client").value = ""; render(); });
 $("#export-button").addEventListener("click", exportCsv);
+$("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
 $("#add-stop-button").addEventListener("click", () => addStop());
 
@@ -300,7 +372,7 @@ form.addEventListener("submit", async (event) => {
   const saveButton = form.querySelector('button[type="submit"]');
   const id = $("#trip-id").value || crypto.randomUUID();
   const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
-  const trip = { id, date: $("#trip-date").value, distance: Number($("#distance").value), start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
+  const trip = { id, date: $("#trip-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), rateCents: Number($("#rate-cents").value || 0), start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
   setButtonBusy(saveButton, true, "Saving…");
   const query = $("#trip-id").value ? db.from("trips").update(toDatabase(trip)).eq("id", id) : db.from("trips").insert(toDatabase(trip));
   const { error } = await query;
@@ -311,7 +383,8 @@ form.addEventListener("submit", async (event) => {
 });
 
 $("#trip-list").addEventListener("click", async (event) => {
-  const id = event.target.dataset.edit || event.target.dataset.delete;
+  const id = event.target.dataset.edit || event.target.dataset.delete || event.target.dataset.duplicate;
+  if (event.target.dataset.duplicate) openForm(trips.find((trip) => trip.id === id), true);
   if (event.target.dataset.edit) openForm(trips.find((trip) => trip.id === id));
   if (event.target.dataset.delete && confirm("Delete this trip?")) {
     const { error } = await db.from("trips").delete().eq("id", id);

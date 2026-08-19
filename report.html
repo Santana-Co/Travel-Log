@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'" />
+    <title>Travel Log Report</title>
+    <link rel="stylesheet" href="report.css" />
+  </head>
+  <body>
+    <header class="report-header"><div><p class="eyebrow">SANTANA-CO · WORK TRAVEL</p><h1>Travel Log Report</h1><p id="report-owner"></p></div><div class="screen-actions"><button id="print-button" type="button">Print / Save PDF</button><button id="close-report" type="button">Close</button></div></header>
+    <main>
+      <section id="report-message" class="message" hidden></section>
+      <section id="report-content">
+        <div class="report-meta"><div><span>Reporting period</span><strong id="report-period"></strong></div><div><span>Generated</span><strong id="generated-date"></strong></div></div>
+        <section class="totals"><article><span>Trips</span><strong id="report-trip-count"></strong></article><article><span>Total distance</span><strong id="report-distance"></strong></article><article><span>Claim estimate</span><strong id="report-claim"></strong></article></section>
+        <p id="filter-summary" class="filter-summary"></p>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Purpose / project</th><th>Route</th><th>Vehicle</th><th>Distance</th><th>Rate</th><th>Claim</th></tr></thead><tbody id="report-rows"></tbody></table></div>
+        <p class="disclaimer">Distances and claim amounts are user records and estimates. Review them against your employer or tax requirements before submission.</p>
+      </section>
+    </main>
+    <script src="report.js"></script>
+  </body>
+</html>
