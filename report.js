@@ -1,7 +1,7 @@
 const payloadText = sessionStorage.getItem("travel-log-print-report");
 sessionStorage.removeItem("travel-log-print-report");
 const $ = (selector) => document.querySelector(selector);
-const { atoRateForDate, claimAmount, claimSummary, normalizeRecordingMode, totalDistance } = TravelLogLogic;
+const { atoRateForDate, claimAmount, claimSummary, logbookAnnualSummary, normalizeRecordingMode, totalDistance } = TravelLogLogic;
 const formatKm = (value) => `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`;
 const formatMoney = (value) => new Intl.NumberFormat(undefined, { style: "currency", currency: "AUD" }).format(value);
 const formatDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -30,10 +30,17 @@ if (!payloadText) {
       $("#report-claim").textContent = formatMoney(claims.atoCents);
       $("#claim-summary-note").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} excluded above the annual ATO cap.` : "The ATO annual cap is applied automatically.";
     } else if (recordingMode === "ato_logbook") {
-      const logbookCount = Array.isArray(report.logbookPeriods) ? report.logbookPeriods.length : 0;
-      $("#report-claim-label").textContent = "Logbook periods";
-      $("#report-claim").textContent = String(logbookCount);
-      $("#claim-summary-note").textContent = "Apply the relevant business-use percentage to eligible actual car expenses separately.";
+      const periods = Array.isArray(report.logbookPeriods) ? report.logbookPeriods : [];
+      const annualRecords = Array.isArray(report.annualOdometerRecords) ? report.annualOdometerRecords : [];
+      const logbookTrips = Array.isArray(report.logbookTrips) ? report.logbookTrips : trips;
+      const estimatedBusinessKilometres = annualRecords.reduce((sum, record) => {
+        const period = periods.find((item) => item.id === record.logbookPeriodId);
+        const summary = logbookAnnualSummary(record, period, logbookTrips);
+        return sum + (summary.isValid ? summary.estimatedBusinessKilometres : 0);
+      }, 0);
+      $("#report-claim-label").textContent = "Estimated business km";
+      $("#report-claim").textContent = formatKm(estimatedBusinessKilometres);
+      $("#claim-summary-note").textContent = "Calculated from each valid financial-year odometer total and its representative logbook percentage. Apply that percentage to eligible actual car expenses separately.";
     } else {
       $("#report-claim-label").textContent = "Reimbursement estimate";
       $("#report-claim").textContent = formatMoney(claims.employer);

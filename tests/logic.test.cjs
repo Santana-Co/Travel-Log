@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
 
 const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
 
@@ -46,6 +46,24 @@ test("calculates and validates a 12-week ATO logbook period", () => {
   assert.equal(validateLogbookPeriod(period), "");
   assert.match(validateLogbookPeriod({ ...period, endDate: "2026-08-01" }), /12 continuous weeks/i);
   assert.deepEqual(logbookSummary(period, [{ ...validTrip, date: "2026-08-20", claimMethod: "ato_logbook", vehicleRegistration: "123ABC", odometerStart: 10100, odometerEnd: 10200 }]), { businessKilometres: 100, totalKilometres: 2000, businessUsePercent: 5 });
+});
+
+test("applies a representative logbook percentage to valid annual odometer totals", () => {
+  const period = { id: "period-1", vehicleRegistration: "123ABC", vehicleDescription: "Toyota Hilux", startDate: "2026-07-01", endDate: "2026-09-22", openingOdometer: 10000, closingOdometer: 11000 };
+  const logbookTrips = [{ ...validTrip, date: "2026-08-20", claimMethod: "ato_logbook", vehicleRegistration: "123ABC", odometerStart: 10100, odometerEnd: 10700 }];
+  const annual = { incomeYearStart: 2026, openingOdometer: 10000, closingOdometer: 30000, circumstancesChanged: false };
+  assert.equal(logbookValidityEnd(period), "2031-06-30");
+  assert.deepEqual(logbookAnnualSummary(annual, period, logbookTrips), { businessUsePercent: 60, estimatedBusinessKilometres: 12000, isValid: true, totalKilometres: 20000, validUntil: "2031-06-30" });
+  assert.equal(logbookAnnualSummary({ ...annual, incomeYearStart: 2025 }, period, logbookTrips).isValid, false);
+  assert.equal(logbookAnnualSummary({ ...annual, incomeYearStart: 2031 }, period, logbookTrips).isValid, false);
+  assert.equal(logbookAnnualSummary({ ...annual, circumstancesChanged: true }, period, logbookTrips).isValid, false);
+});
+
+test("validates annual financial-year odometer records", () => {
+  const annual = { vehicleRegistration: "123ABC", incomeYearStart: 2026, openingOdometer: 10000, closingOdometer: 30000, notes: "Representative use continued" };
+  assert.equal(validateAnnualOdometerRecord(annual), "");
+  assert.match(validateAnnualOdometerRecord({ ...annual, closingOdometer: 9000 }), /closing odometer/i);
+  assert.match(validateAnnualOdometerRecord({ ...annual, incomeYearStart: 1999 }), /financial year/i);
 });
 
 test("normalizes profile recording modes and preserves each trip's original workflow", () => {

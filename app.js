@@ -4,7 +4,7 @@ if (!runtimeConfig?.supabaseUrl || !runtimeConfig?.supabasePublishableKey || !ru
 const { supabaseUrl, supabasePublishableKey, distanceApiUrl } = runtimeConfig;
 const appEnvironment = runtimeConfig.environment === "staging" ? "staging" : "production";
 const privacyVersion = "2026-08-20-ato-logbook";
-const requiredSchemaVersion = 1;
+const requiredSchemaVersion = 2;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#trip-dialog");
@@ -13,11 +13,12 @@ const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
 const compatibilityDialog = $("#compatibility-dialog");
-const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
 let logbookPeriods = [];
+let annualOdometerRecords = [];
 let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
@@ -75,7 +76,11 @@ function toDatabase(trip) {
 }
 
 function fromLogbookDatabase(row) {
-  return { id: row.id, vehicleRegistration: row.vehicle_registration, vehicleDescription: row.vehicle_description, engineCapacity: row.engine_capacity || "", startDate: row.start_date, endDate: row.end_date, openingOdometer: Number(row.opening_odometer), closingOdometer: Number(row.closing_odometer), incomeYearOpeningOdometer: row.income_year_opening_odometer === null ? "" : Number(row.income_year_opening_odometer), incomeYearClosingOdometer: row.income_year_closing_odometer === null ? "" : Number(row.income_year_closing_odometer) };
+  return { id: row.id, vehicleRegistration: row.vehicle_registration, vehicleDescription: row.vehicle_description, engineCapacity: row.engine_capacity || "", startDate: row.start_date, endDate: row.end_date, openingOdometer: Number(row.opening_odometer), closingOdometer: Number(row.closing_odometer) };
+}
+
+function fromAnnualOdometerDatabase(row) {
+  return { id: row.id, logbookPeriodId: row.logbook_period_id, vehicleRegistration: row.vehicle_registration, incomeYearStart: Number(row.income_year_start), openingOdometer: Number(row.opening_odometer), closingOdometer: Number(row.closing_odometer), circumstancesChanged: Boolean(row.circumstances_changed), notes: row.notes || "" };
 }
 
 function filteredTrips() {
@@ -99,9 +104,14 @@ function render() {
     $("#claim-total").textContent = formatMoney(claims.atoCents);
     $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "ATO estimates are capped automatically in the summary.";
   } else if (recordingMode === "ato_logbook") {
-    $("#claim-summary-label").textContent = "Logbook periods";
-    $("#claim-total").textContent = String(logbookPeriods.length);
-    $("#ato-cap-message").textContent = "Use each completed period's business-use percentage with eligible actual car expenses.";
+    const annualBusinessKilometres = annualOdometerRecords.reduce((sum, record) => {
+      const period = logbookPeriods.find((item) => item.id === record.logbookPeriodId);
+      const summary = logbookAnnualSummary(record, period, trips);
+      return sum + (summary.isValid ? summary.estimatedBusinessKilometres : 0);
+    }, 0);
+    $("#claim-summary-label").textContent = "Estimated business km";
+    $("#claim-total").textContent = formatKm(annualBusinessKilometres);
+    $("#ato-cap-message").textContent = "Calculated from each valid logbook percentage and the matching financial-year odometer record.";
   } else {
     $("#claim-summary-label").textContent = "Reimbursement estimate";
     $("#claim-total").textContent = formatMoney(claims.employer);
@@ -148,15 +158,28 @@ function renderLogbooks() {
   $("#logbook-list").innerHTML = logbookPeriods.length ? logbookPeriods.map((period) => {
     const summary = logbookSummary(period, trips);
     const warning = summary.businessUsePercent > 100 ? " · check readings: work distance exceeds total distance" : "";
-    const annual = period.incomeYearOpeningOdometer !== "" && period.incomeYearClosingOdometer !== "" ? ` · income-year odometer ${period.incomeYearOpeningOdometer}–${period.incomeYearClosingOdometer}` : " · add 1 July and 30 June readings when available";
-    return `<div class="saved-location"><div><strong>${escapeHtml(period.vehicleRegistration)} · ${escapeHtml(period.vehicleDescription)}</strong><span>${displayDate(period.startDate)} – ${displayDate(period.endDate)} · ${formatKm(summary.businessKilometres)} work / ${formatKm(summary.totalKilometres)} total · ${summary.businessUsePercent.toFixed(1)}% business use${annual}${warning}</span></div><button type="button" class="text-button" data-delete-logbook="${period.id}">Remove</button></div>`;
+    return `<div class="saved-location"><div><strong>${escapeHtml(period.vehicleRegistration)} · ${escapeHtml(period.vehicleDescription)}</strong><span>${displayDate(period.startDate)} – ${displayDate(period.endDate)} · ${formatKm(summary.businessKilometres)} business / ${formatKm(summary.totalKilometres)} total · ${summary.businessUsePercent.toFixed(1)}% business use · valid through ${displayDate(logbookValidityEnd(period))}${warning}</span></div><button type="button" class="text-button" data-delete-logbook="${period.id}">Remove</button></div>`;
   }).join("") : `<p>No ATO logbook periods yet.</p>`;
+  $("#annual-odometer-list").innerHTML = annualOdometerRecords.length ? annualOdometerRecords.map((record) => {
+    const period = logbookPeriods.find((item) => item.id === record.logbookPeriodId);
+    const summary = logbookAnnualSummary(record, period, trips);
+    const year = `${record.incomeYearStart}–${String(record.incomeYearStart + 1).slice(-2)}`;
+    const status = record.circumstancesChanged ? "New representative logbook required because circumstances changed" : (summary.isValid ? `${summary.businessUsePercent.toFixed(1)}% × ${formatKm(summary.totalKilometres)} = ${formatKm(summary.estimatedBusinessKilometres)} estimated business travel` : "No valid matching logbook for this financial year");
+    return `<div class="saved-location"><div><strong>${escapeHtml(record.vehicleRegistration)} · ${escapeHtml(year)}</strong><span>Odometer ${escapeHtml(record.openingOdometer)}–${escapeHtml(record.closingOdometer)} · ${status}${record.notes ? ` · ${escapeHtml(record.notes)}` : ""}</span></div><button type="button" class="text-button" data-delete-annual-odometer="${record.id}">Remove</button></div>`;
+  }).join("") : `<p>No financial-year odometer records yet.</p>`;
 }
 
 async function loadLogbooks() {
   const { data, error } = await db.from("logbook_periods").select("*").order("start_date", { ascending: false });
   if (error) throw error;
   logbookPeriods = (data || []).map(fromLogbookDatabase);
+  renderLogbooks();
+}
+
+async function loadAnnualOdometerRecords() {
+  const { data, error } = await db.from("logbook_income_years").select("*").order("income_year_start", { ascending: false });
+  if (error) throw error;
+  annualOdometerRecords = (data || []).map(fromAnnualOdometerDatabase);
   renderLogbooks();
 }
 
@@ -228,7 +251,7 @@ async function showApp(user, force = false) {
     $("#account-actions").hidden = false;
     const accepted = await ensurePrivacyAccepted();
     if (!accepted) return;
-    await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks()]);
+    await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks(), loadAnnualOdometerRecords()]);
     renderLogbooks();
     render();
     await migrateLocalTrips();
@@ -242,6 +265,7 @@ function showAuth() {
   trips = [];
   savedLocations = [];
   logbookPeriods = [];
+  annualOdometerRecords = [];
   $("#auth-view").hidden = false;
   $("#app-view").hidden = true;
   $("#account-actions").hidden = true;
@@ -358,7 +382,7 @@ function openPrintableReport() {
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
   const recordingMode = activeRecordingMode();
-  const payload = { generatedAt: new Date().toISOString(), recordingMode, user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, logbookPeriods, trips: reportTrips, claimSummary: claimSummary(reportTrips, recordingMode) };
+  const payload = { generatedAt: new Date().toISOString(), recordingMode, user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, logbookPeriods, annualOdometerRecords, logbookTrips: trips, trips: reportTrips, claimSummary: claimSummary(reportTrips, recordingMode) };
   sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
   const reportWindow = window.open("report.html", "_blank");
   if (!reportWindow) { sessionStorage.removeItem("travel-log-print-report"); alert("Allow pop-ups for Travel Log, then try Print / Save PDF again."); }
@@ -405,17 +429,34 @@ async function addSavedLocation() {
 }
 
 async function addLogbookPeriod() {
-  const period = { vehicleRegistration: $("#logbook-registration").value.trim().toUpperCase(), vehicleDescription: $("#logbook-vehicle").value.trim(), engineCapacity: $("#logbook-engine").value.trim(), startDate: $("#logbook-start-date").value, endDate: $("#logbook-end-date").value, openingOdometer: $("#logbook-opening").value, closingOdometer: $("#logbook-closing").value, incomeYearOpeningOdometer: $("#logbook-year-opening").value, incomeYearClosingOdometer: $("#logbook-year-closing").value };
+  const period = { vehicleRegistration: $("#logbook-registration").value.trim().toUpperCase(), vehicleDescription: $("#logbook-vehicle").value.trim(), engineCapacity: $("#logbook-engine").value.trim(), startDate: $("#logbook-start-date").value, endDate: $("#logbook-end-date").value, openingOdometer: $("#logbook-opening").value, closingOdometer: $("#logbook-closing").value };
   const validationError = validateLogbookPeriod(period);
   if (validationError) return alert(validationError);
-  if (period.incomeYearOpeningOdometer !== "" && period.incomeYearClosingOdometer !== "" && Number(period.incomeYearClosingOdometer) < Number(period.incomeYearOpeningOdometer)) return alert("The income-year closing odometer cannot be below the opening odometer.");
   const button = $("#add-logbook");
   setButtonBusy(button, true, "Saving…");
-  const { error } = await db.from("logbook_periods").upsert({ user_id: currentUser.id, vehicle_registration: period.vehicleRegistration, vehicle_description: period.vehicleDescription, engine_capacity: period.engineCapacity || null, start_date: period.startDate, end_date: period.endDate, opening_odometer: Number(period.openingOdometer), closing_odometer: Number(period.closingOdometer), income_year_opening_odometer: period.incomeYearOpeningOdometer === "" ? null : Number(period.incomeYearOpeningOdometer), income_year_closing_odometer: period.incomeYearClosingOdometer === "" ? null : Number(period.incomeYearClosingOdometer) }, { onConflict: "user_id,vehicle_registration,start_date" });
+  const { error } = await db.from("logbook_periods").upsert({ user_id: currentUser.id, vehicle_registration: period.vehicleRegistration, vehicle_description: period.vehicleDescription, engine_capacity: period.engineCapacity || null, start_date: period.startDate, end_date: period.endDate, opening_odometer: Number(period.openingOdometer), closing_odometer: Number(period.closingOdometer) }, { onConflict: "user_id,vehicle_registration,start_date" });
   setButtonBusy(button, false);
   if (error) return alert(`Logbook period could not be saved: ${error.message}`);
-  for (const id of ["logbook-registration", "logbook-vehicle", "logbook-engine", "logbook-start-date", "logbook-end-date", "logbook-opening", "logbook-closing", "logbook-year-opening", "logbook-year-closing"]) $(`#${id}`).value = "";
+  for (const id of ["logbook-registration", "logbook-vehicle", "logbook-engine", "logbook-start-date", "logbook-end-date", "logbook-opening", "logbook-closing"]) $(`#${id}`).value = "";
   await loadLogbooks();
+}
+
+async function addAnnualOdometerRecord() {
+  const record = { vehicleRegistration: $("#annual-registration").value.trim().toUpperCase(), incomeYearStart: Number($("#annual-income-year").value), openingOdometer: $("#annual-opening").value, closingOdometer: $("#annual-closing").value, circumstancesChanged: $("#annual-circumstances-changed").checked, notes: $("#annual-notes").value.trim() };
+  const validationError = validateAnnualOdometerRecord(record);
+  if (validationError) return alert(validationError);
+  const eligiblePeriods = logbookPeriods.filter((period) => period.vehicleRegistration.toUpperCase() === record.vehicleRegistration && record.incomeYearStart >= atoIncomeYearStart(period.startDate) && `${record.incomeYearStart + 1}-06-30` <= logbookValidityEnd(period)).sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const period = eligiblePeriods[0];
+  if (!period) return alert("Create a matching representative logbook period for this registration before adding the financial-year record.");
+  const button = $("#add-annual-odometer");
+  setButtonBusy(button, true, "Saving…");
+  const { error } = await db.from("logbook_income_years").upsert({ user_id: currentUser.id, logbook_period_id: period.id, vehicle_registration: record.vehicleRegistration, income_year_start: record.incomeYearStart, opening_odometer: Number(record.openingOdometer), closing_odometer: Number(record.closingOdometer), circumstances_changed: record.circumstancesChanged, notes: record.notes || null }, { onConflict: "user_id,vehicle_registration,income_year_start" });
+  setButtonBusy(button, false);
+  if (error) return alert(`Annual odometer record could not be saved: ${error.message}`);
+  for (const id of ["annual-registration", "annual-income-year", "annual-opening", "annual-closing", "annual-notes"]) $(`#${id}`).value = "";
+  $("#annual-circumstances-changed").checked = false;
+  await loadAnnualOdometerRecords();
+  render();
 }
 
 async function calculateDistance() {
@@ -520,12 +561,21 @@ $("#appearance-theme").addEventListener("change", async (event) => {
 });
 $("#add-location").addEventListener("click", addSavedLocation);
 $("#add-logbook").addEventListener("click", addLogbookPeriod);
+$("#add-annual-odometer").addEventListener("click", addAnnualOdometerRecord);
 $("#logbook-list").addEventListener("click", async (event) => {
   const id = event.target.dataset.deleteLogbook;
   if (!id || !confirm("Remove this logbook period? Existing trip records will not be deleted.")) return;
   const { error } = await db.from("logbook_periods").delete().eq("id", id);
   if (error) return alert(`Logbook period could not be removed: ${error.message}`);
   await loadLogbooks();
+});
+$("#annual-odometer-list").addEventListener("click", async (event) => {
+  const id = event.target.dataset.deleteAnnualOdometer;
+  if (!id || !confirm("Remove this financial-year odometer record?")) return;
+  const { error } = await db.from("logbook_income_years").delete().eq("id", id);
+  if (error) return alert(`Annual odometer record could not be removed: ${error.message}`);
+  await loadAnnualOdometerRecords();
+  render();
 });
 $("#saved-location-list").addEventListener("click", async (event) => {
   const id = event.target.dataset.deleteLocation;
@@ -534,7 +584,7 @@ $("#saved-location-list").addEventListener("click", async (event) => {
   if (error) return alert(`Location could not be removed: ${error.message}`);
   await loadSavedLocations();
 });
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, logbook_income_years: annualOdometerRecords, trips }));
 $("#delete-account").addEventListener("click", async () => {
   const password = $("#delete-password").value;
   if (!password) return alert("Enter your current password to confirm account deletion.");

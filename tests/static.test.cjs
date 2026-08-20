@@ -20,7 +20,7 @@ test("production pages load pinned and local scripts in the required order", () 
 });
 
 test("privacy, report and migration assets are present", () => {
-  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "config.js", "supabase/base-schema.sql", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/appearance-theme-migration.sql", "supabase/recording-mode-migration.sql", "supabase/account-reauthentication-migration.sql", "supabase/schema-version-migration.sql"]) {
+  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "config.js", "supabase/base-schema.sql", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/logbook-income-years-migration.sql", "supabase/appearance-theme-migration.sql", "supabase/recording-mode-migration.sql", "supabase/account-reauthentication-migration.sql", "supabase/schema-version-migration.sql"]) {
     assert.ok(fs.existsSync(path.join(root, name)), name);
   }
   assert.match(read("supabase/appearance-theme-migration.sql"), /appearance_theme in \('light', 'dark', 'system'\)/);
@@ -29,6 +29,9 @@ test("privacy, report and migration assets are present", () => {
   assert.match(read("supabase/recording-mode-migration.sql"), /recording_mode in \('general', 'ato_cents', 'ato_logbook'\)/);
   assert.match(read("supabase/recording-mode-migration.sql"), /notify pgrst, 'reload schema'/);
   assert.match(read("app.js"), /recording_mode/);
+  assert.match(read("supabase/logbook-income-years-migration.sql"), /logbook_income_years/);
+  assert.match(read("supabase/logbook-income-years-migration.sql"), /circumstances_changed/);
+  assert.match(read("index.html"), /id="annual-income-year"/);
   assert.match(read("index.html"), /id="recording-mode"/);
   assert.match(read("index.html"), /id="claim-method" type="hidden"/);
   assert.match(read("index.html"), /id="delete-password" type="password" autocomplete="current-password"/);
