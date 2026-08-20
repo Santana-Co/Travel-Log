@@ -12,8 +12,10 @@ Include a short description, the affected page or feature, what you observed, an
 - Administrator accounts use multi-factor authentication and unique passwords.
 - Secrets are held in provider secret stores and are not committed to the public repositories.
 - Routing requests require a valid signed-in user session and accept only bounded address inputs.
+- Routing calculations are throttled per signed-in user to reduce automated abuse and unexpected provider use.
 - Connections use HTTPS, and the browser app applies a restrictive content security policy.
-- Users can export their information and permanently delete their account.
+- Users can export their information. Permanent account deletion requires recent password confirmation.
+- GitHub runs automated code scanning and checks weekly for dependency and workflow updates.
 - Access, dependencies, privacy wording, and provider configuration should be reviewed at least quarterly and whenever the service changes materially.
 
 ## Pilot data rules
@@ -25,3 +27,5 @@ Access to production data is limited to support, security, legal compliance, and
 ## If an incident occurs
 
 Santana-Co should preserve evidence without unnecessarily copying personal data, revoke exposed credentials, contain the affected component, determine what data and users were affected, restore safe operation, document decisions, and assess notification obligations. Credentials must never be sent by email or placed in an incident ticket.
+
+Use the operational checklist in [INCIDENT_RESPONSE.md](INCIDENT_RESPONSE.md) for triage, containment, assessment, recovery, and follow-up.

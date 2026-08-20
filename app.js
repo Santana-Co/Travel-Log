@@ -351,6 +351,7 @@ function openAccount() {
   $("#recording-mode").value = activeRecordingMode();
   $("#recording-mode-message").textContent = "";
   applyRecordingMode(activeRecordingMode());
+  $("#delete-password").value = "";
   $("#delete-confirmation").value = "";
   accountDialog.showModal();
 }
@@ -440,7 +441,10 @@ $("#forgot-password").addEventListener("click", async () => {
 $("#sign-out-button").addEventListener("click", () => db.auth.signOut());
 $("#account-button").addEventListener("click", openAccount);
 $("#account-form").addEventListener("submit", (event) => event.preventDefault());
-$("#close-account").addEventListener("click", () => accountDialog.close());
+$("#close-account").addEventListener("click", () => {
+  $("#delete-password").value = "";
+  accountDialog.close();
+});
 $("#recording-mode").addEventListener("change", async (event) => {
   const control = event.currentTarget;
   const previousMode = activeRecordingMode();
@@ -498,9 +502,18 @@ $("#saved-location-list").addEventListener("click", async (event) => {
 });
 $("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, trips }));
 $("#delete-account").addEventListener("click", async () => {
+  const password = $("#delete-password").value;
+  if (!password) return alert("Enter your current password to confirm account deletion.");
   if ($("#delete-confirmation").value.trim() !== "DELETE") return alert("Type DELETE exactly to confirm permanent account deletion.");
   if (!confirm("Permanently delete your account and every saved trip? This cannot be undone.")) return;
   const button = $("#delete-account");
+  setButtonBusy(button, true, "Confirming…");
+  const { error: authenticationError } = await db.auth.signInWithPassword({ email: currentUser.email, password });
+  $("#delete-password").value = "";
+  if (authenticationError) {
+    setButtonBusy(button, false);
+    return alert("Password confirmation failed. Your account was not deleted.");
+  }
   setButtonBusy(button, true, "Deleting…");
   const userId = currentUser.id;
   const { error } = await db.rpc("delete_my_account");
