@@ -28,6 +28,10 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 
 Serve this directory from a local web server and open it in a browser. A configured Supabase account is required.
 
+## Test releases safely
+
+Use the isolated Cloudflare Pages, Supabase, and routing Worker setup in `STAGING.md` for pull-request and major-release testing. Staging builds display a permanent test-data banner and refuse production backend addresses. Complete `STAGING_SMOKE_TEST.md` before approving a major production release.
+
 ## Automatic distance calculation
 
 The app uses a shared secure service to calculate driving distance. Visitors do not need an API key.

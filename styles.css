@@ -4,6 +4,7 @@ html[data-theme="dark"] { --ink:#edf3f0; --muted:#aab7b3; --paper:#101617; --car
 @media (prefers-color-scheme:dark) { html[data-theme="system"] { --ink:#edf3f0; --muted:#aab7b3; --paper:#101617; --card:#182123; --accent:#ff8b69; --line:#344244; --dark:#24575a; --brand-hover:#306d70; --field:#11191a; --field-border:#52615f; --focus:#7e4537; --subtle:#222d2e; --subtle-hover:#2b3839; --notice:#3a3020; --notice-text:#f1d49b; --guidance:#1c302d; --guidance-line:#36514c; --warning:#f3b56f; --error:#ff9a82; --danger:#b94b3c; --danger-hover:#d35b4b; --summary-text:#dce9e4; --summary-strong:#fff; --backdrop:#050909bb; --shadow:#0009; } }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.environment-banner { background:var(--notice); border-bottom:2px solid var(--warning); color:var(--notice-text); font-size:.78rem; font-weight:850; letter-spacing:.08em; padding:9px 16px; text-align:center; }
 button,input,textarea,select { font:inherit; }
 [hidden] { display:none !important; }
 .site-header, main { width:min(1050px, calc(100% - 32px)); margin:auto; }

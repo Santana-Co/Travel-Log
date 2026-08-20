@@ -9,6 +9,14 @@ Use this checklist for every production release.
 - Test sign-in, adding and editing a trip, distance calculation, reports, and sign-out.
 - Confirm the GitHub Pages deployment succeeds after merge.
 
+## Major release or authentication/data change
+
+- Deploy the pull request to the isolated Cloudflare Pages staging environment.
+- Apply new migrations to staging first and confirm its schema version.
+- Complete `STAGING_SMOKE_TEST.md` with a staging-only account and synthetic data.
+- Confirm staging never references the production Supabase project or routing Worker.
+- Do not apply the production migration or merge until staging passes.
+
 ## Release with a Supabase schema change
 
 1. Add an additive, repeatable migration in `supabase/`. Do not delete or rename production columns in the same release.

@@ -1,7 +1,8 @@
 const storageKey = "travel-log-trips";
-const supabaseUrl = "https://caqgnnlgtomcmkpafvoc.supabase.co";
-const supabasePublishableKey = "sb_publishable_QH3nXDysJyTfg61qv_h98w_-SergW2w";
-const distanceApiUrl = "https://travel-log-distance-api.jfsantana0691.workers.dev/distance";
+const runtimeConfig = window.TravelLogConfig;
+if (!runtimeConfig?.supabaseUrl || !runtimeConfig?.supabasePublishableKey || !runtimeConfig?.distanceApiUrl) throw new Error("Travel Log environment configuration is missing.");
+const { supabaseUrl, supabasePublishableKey, distanceApiUrl } = runtimeConfig;
+const appEnvironment = runtimeConfig.environment === "staging" ? "staging" : "production";
 const privacyVersion = "2026-08-20-ato-logbook";
 const requiredSchemaVersion = 1;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
@@ -21,6 +22,11 @@ let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
 let privacyResolver = null;
+
+if (appEnvironment === "staging") {
+  document.documentElement.dataset.environment = "staging";
+  $("#environment-banner").hidden = false;
+}
 
 function formatKm(value) { return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`; }
 function formatMoney(value) { return new Intl.NumberFormat(undefined, { style: "currency", currency: "AUD" }).format(value); }
