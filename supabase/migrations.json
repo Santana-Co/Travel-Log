@@ -1,10 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "releaseOrder": [
+    "base-schema.sql",
     "privacy-security-migration.sql",
     "reporting-migration.sql",
     "stabilization-migration.sql",
     "ato-logbook-migration.sql",
+    "logbook-income-years-migration.sql",
     "appearance-theme-migration.sql",
     "recording-mode-migration.sql",
     "account-reauthentication-migration.sql",
