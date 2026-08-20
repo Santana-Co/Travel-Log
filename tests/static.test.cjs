@@ -19,7 +19,7 @@ test("production pages load pinned and local scripts in the required order", () 
 });
 
 test("privacy, report and migration assets are present", () => {
-  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/appearance-theme-migration.sql", "supabase/recording-mode-migration.sql"]) {
+  for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/appearance-theme-migration.sql", "supabase/recording-mode-migration.sql", "supabase/account-reauthentication-migration.sql"]) {
     assert.ok(fs.existsSync(path.join(root, name)), name);
   }
   assert.match(read("supabase/appearance-theme-migration.sql"), /appearance_theme in \('light', 'dark', 'system'\)/);
@@ -30,4 +30,7 @@ test("privacy, report and migration assets are present", () => {
   assert.match(read("app.js"), /recording_mode/);
   assert.match(read("index.html"), /id="recording-mode"/);
   assert.match(read("index.html"), /id="claim-method" type="hidden"/);
+  assert.match(read("index.html"), /id="delete-password" type="password" autocomplete="current-password"/);
+  assert.match(read("app.js"), /signInWithPassword\(\{ email: currentUser\.email, password \}\)/);
+  assert.match(read("supabase/account-reauthentication-migration.sql"), /Recent authentication required/);
 });
