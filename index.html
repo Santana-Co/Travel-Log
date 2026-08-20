@@ -145,6 +145,15 @@
       </form>
     </dialog>
 
+    <dialog id="compatibility-dialog" aria-labelledby="compatibility-title">
+      <form method="dialog">
+        <div class="dialog-heading"><div><p class="eyebrow">SERVICE CHECK</p><h2 id="compatibility-title">Travel Log needs a moment</h2></div></div>
+        <p id="compatibility-message" class="dialog-copy" role="status">Travel Log could not verify that the database is ready. Your saved records have not been changed.</p>
+        <p class="dialog-copy">This may be a temporary connection issue or a database update that is still being completed.</p>
+        <div class="dialog-actions"><button id="compatibility-sign-out" type="button" class="button secondary">Sign out</button><button id="retry-compatibility" type="button" class="button primary">Try again</button></div>
+      </form>
+    </dialog>
+
     <datalist id="saved-addresses"></datalist>
     <datalist id="vehicle-registrations"></datalist>
 

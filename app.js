@@ -3,6 +3,7 @@ const supabaseUrl = "https://caqgnnlgtomcmkpafvoc.supabase.co";
 const supabasePublishableKey = "sb_publishable_QH3nXDysJyTfg61qv_h98w_-SergW2w";
 const distanceApiUrl = "https://travel-log-distance-api.jfsantana0691.workers.dev/distance";
 const privacyVersion = "2026-08-20-ato-logbook";
+const requiredSchemaVersion = 1;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 const dialog = $("#trip-dialog");
@@ -10,6 +11,7 @@ const form = $("#trip-form");
 const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
+const compatibilityDialog = $("#compatibility-dialog");
 const { atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookSummary, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
@@ -185,14 +187,39 @@ async function ensurePrivacyAccepted() {
   return new Promise((resolve) => { privacyResolver = resolve; });
 }
 
-async function showApp(user) {
-  if (currentUser?.id === user.id && $("#auth-view").hidden) return;
+async function ensureSchemaCompatible() {
+  const { data, error } = await db.rpc("get_app_schema_version");
+  if (error) {
+    return { compatible: false, message: "Travel Log could not verify that the database is ready. Check your connection and try again. Your saved records have not been changed." };
+  }
+  const currentVersion = Number(data);
+  if (!Number.isInteger(currentVersion) || currentVersion < requiredSchemaVersion) {
+    return { compatible: false, message: "A required Travel Log database update has not finished yet. Please try again shortly. Your saved records have not been changed." };
+  }
+  return { compatible: true };
+}
+
+function showCompatibilityIssue(message) {
+  $("#compatibility-message").textContent = message;
+  if (!compatibilityDialog.open) compatibilityDialog.showModal();
+}
+
+async function showApp(user, force = false) {
+  if (!force && currentUser?.id === user.id && !$("#app-view").hidden) return;
   currentUser = user;
   $("#auth-view").hidden = true;
-  $("#app-view").hidden = false;
-  $("#account-actions").hidden = false;
+  $("#app-view").hidden = true;
+  $("#account-actions").hidden = true;
   $("#account-name").textContent = user.user_metadata?.full_name || user.email;
   try {
+    const schema = await ensureSchemaCompatible();
+    if (!schema.compatible) {
+      showCompatibilityIssue(schema.message);
+      return;
+    }
+    if (compatibilityDialog.open) compatibilityDialog.close();
+    $("#app-view").hidden = false;
+    $("#account-actions").hidden = false;
     const accepted = await ensurePrivacyAccepted();
     if (!accepted) return;
     await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks()]);
@@ -212,6 +239,7 @@ function showAuth() {
   $("#auth-view").hidden = false;
   $("#app-view").hidden = true;
   $("#account-actions").hidden = true;
+  if (compatibilityDialog.open) compatibilityDialog.close();
 }
 
 function setAuthMode(mode) {
@@ -547,6 +575,15 @@ $("#privacy-sign-out").addEventListener("click", async () => {
   await db.auth.signOut();
 });
 privacyDialog.addEventListener("cancel", (event) => event.preventDefault());
+$("#retry-compatibility").addEventListener("click", async () => {
+  if (!currentUser) return;
+  const button = $("#retry-compatibility");
+  setButtonBusy(button, true, "Checking…");
+  await showApp(currentUser, true);
+  setButtonBusy(button, false);
+});
+$("#compatibility-sign-out").addEventListener("click", async () => { await db.auth.signOut(); });
+compatibilityDialog.addEventListener("cancel", (event) => event.preventDefault());
 $("#new-trip-button").addEventListener("click", () => openForm());
 $("#empty-add-button").addEventListener("click", () => openForm());
 $("#close-button").addEventListener("click", () => dialog.close());
