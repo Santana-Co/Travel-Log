@@ -35,7 +35,9 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
 
-Run the migration files in `supabase/` once in release order: privacy/security, reporting, stabilization, ATO/logbook, appearance/theme, recording mode, then account reauthentication. They add versioned privacy acknowledgement, self-service account deletion with recent-password confirmation, reporting fields, private saved locations and logbooks, validation constraints, cross-device appearance and recording preferences, and hardened database functions. Never place a Supabase service-role key in this repository or in browser code.
+Run the migration files in `supabase/` once in release order: privacy/security, reporting, stabilization, ATO/logbook, appearance/theme, recording mode, account reauthentication, then schema version. They add versioned privacy acknowledgement, self-service account deletion with recent-password confirmation, reporting fields, private saved locations and logbooks, validation constraints, cross-device appearance and recording preferences, hardened database functions, and an authenticated release-compatibility contract. Never place a Supabase service-role key in this repository or in browser code.
+
+For future database changes, follow `RELEASE_CHECKLIST.md`: increase the browser and database schema versions together, apply the additive Supabase migration first, and only then merge the app release. If the contract cannot be verified, signed-in users see a safe retry screen instead of broken database errors.
 
 Changing the recording method affects new-trip fields, guidance, dashboard estimates, and report summaries. Existing trips retain the workflow under which they were recorded, so switching methods does not discard or silently relabel historical records.
 
