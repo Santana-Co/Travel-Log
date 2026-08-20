@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseOrder": [
+    "base-schema.sql",
     "privacy-security-migration.sql",
     "reporting-migration.sql",
     "stabilization-migration.sql",

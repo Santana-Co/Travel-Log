@@ -13,7 +13,7 @@ Staging is a disposable test system for validating pull requests and major relea
 ## One-time Supabase setup
 
 1. Create a second Supabase project named `travel-log-staging` in the same region as production.
-2. In its SQL Editor, run every file in `supabase/migrations.json` release order.
+2. In its SQL Editor, run every file in `supabase/migrations.json` release order. A brand-new project must begin with `base-schema.sql`.
 3. Verify `select public.get_app_schema_version();` returns the manifest's `schemaVersion`.
 4. Set the Authentication site URL to the staging Pages URL after Cloudflare creates it.
 5. Create test users manually in Authentication. Use addresses controlled by the testers, unique passwords, and no real trip data.
