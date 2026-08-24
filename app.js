@@ -251,6 +251,7 @@ async function showApp(user, force = false) {
     $("#account-actions").hidden = false;
     const accepted = await ensurePrivacyAccepted();
     if (!accepted) return;
+    $("#account-name").textContent = currentProfile?.full_name || user.user_metadata?.full_name || user.email;
     await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks(), loadAnnualOdometerRecords()]);
     renderLogbooks();
     render();
@@ -404,6 +405,18 @@ function downloadJson(filename, value) { downloadBlob(filename, new Blob([JSON.s
 function openAccount() {
   $("#account-full-name").textContent = currentProfile?.full_name || currentUser.user_metadata?.full_name || "Not provided";
   $("#account-email").textContent = currentUser.email;
+  $("#profile-name").value = currentProfile?.full_name || currentUser.user_metadata?.full_name || "";
+  $("#profile-email").value = currentUser.email || "";
+  $("#profile-name-message").textContent = "";
+  $("#profile-name-message").classList.remove("error");
+  $("#profile-email-message").textContent = "";
+  $("#profile-email-message").classList.remove("error");
+  $("#account-current-password").value = "";
+  $("#account-new-password").value = "";
+  $("#account-confirm-password").value = "";
+  $("#account-password-message").textContent = "";
+  $("#account-password-message").classList.remove("error");
+  $("#sign-out-other-devices").checked = true;
   $("#appearance-theme").value = window.TravelLogTheme.normalize(currentProfile?.appearance_theme);
   $("#appearance-message").textContent = "";
   $("#recording-mode").value = activeRecordingMode();
@@ -519,6 +532,107 @@ $("#account-form").addEventListener("submit", (event) => event.preventDefault())
 $("#close-account").addEventListener("click", () => {
   $("#delete-password").value = "";
   accountDialog.close();
+});
+$("#save-profile-name").addEventListener("click", async () => {
+  const button = $("#save-profile-name");
+  const message = $("#profile-name-message");
+  const fullName = $("#profile-name").value.trim();
+  if (!fullName) {
+    message.textContent = "Enter the name you want to display.";
+    message.classList.add("error");
+    return;
+  }
+  setButtonBusy(button, true, "Saving…");
+  message.textContent = "";
+  message.classList.remove("error");
+  const { error } = await db.from("profiles").update({ full_name: fullName }).eq("id", currentUser.id);
+  setButtonBusy(button, false);
+  if (error) {
+    message.textContent = `Name could not be saved: ${error.message}`;
+    message.classList.add("error");
+    return;
+  }
+  currentProfile = { ...currentProfile, full_name: fullName };
+  $("#account-full-name").textContent = fullName;
+  $("#account-name").textContent = fullName;
+  message.textContent = "Name saved.";
+});
+$("#change-profile-email").addEventListener("click", async () => {
+  const button = $("#change-profile-email");
+  const message = $("#profile-email-message");
+  const email = $("#profile-email").value.trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    message.textContent = "Enter a valid email address.";
+    message.classList.add("error");
+    return;
+  }
+  if (email === currentUser.email?.toLowerCase()) {
+    message.textContent = "That is already your account email.";
+    message.classList.remove("error");
+    return;
+  }
+  setButtonBusy(button, true, "Requesting…");
+  message.textContent = "";
+  message.classList.remove("error");
+  const redirectTo = location.href.split("#")[0].split("?")[0];
+  const { error } = await db.auth.updateUser({ email }, { emailRedirectTo: redirectTo });
+  setButtonBusy(button, false);
+  if (error) {
+    message.textContent = `Email change could not be requested: ${error.message}`;
+    message.classList.add("error");
+    return;
+  }
+  message.textContent = "Confirmation email sent. Follow the link in your inbox to complete the change.";
+});
+$("#change-account-password").addEventListener("click", async () => {
+  const button = $("#change-account-password");
+  const message = $("#account-password-message");
+  const currentPassword = $("#account-current-password").value;
+  const password = $("#account-new-password").value;
+  const confirmation = $("#account-confirm-password").value;
+  if (!currentPassword) {
+    message.textContent = "Enter your current password.";
+    message.classList.add("error");
+    return;
+  }
+  const requirementError = passwordError(password);
+  if (requirementError) {
+    message.textContent = requirementError;
+    message.classList.add("error");
+    return;
+  }
+  if (password !== confirmation) {
+    message.textContent = "The new passwords do not match.";
+    message.classList.add("error");
+    return;
+  }
+  setButtonBusy(button, true, "Updating…");
+  message.textContent = "";
+  message.classList.remove("error");
+  const { error: reauthenticationError } = await db.auth.signInWithPassword({ email: currentUser.email, password: currentPassword });
+  if (reauthenticationError) {
+    setButtonBusy(button, false);
+    message.textContent = "Your current password could not be confirmed.";
+    message.classList.add("error");
+    return;
+  }
+  const { error } = await db.auth.updateUser({ password });
+  if (error) {
+    setButtonBusy(button, false);
+    message.textContent = `Password could not be changed: ${error.message}`;
+    message.classList.add("error");
+    return;
+  }
+  let signedOutOthers = false;
+  if ($("#sign-out-other-devices").checked) {
+    const { error: signOutError } = await db.auth.signOut({ scope: "others" });
+    signedOutOthers = !signOutError;
+  }
+  setButtonBusy(button, false);
+  $("#account-current-password").value = "";
+  $("#account-new-password").value = "";
+  $("#account-confirm-password").value = "";
+  message.textContent = signedOutOthers ? "Password changed. Other devices have been signed out." : "Password changed.";
 });
 $("#recording-mode").addEventListener("change", async (event) => {
   const control = event.currentTarget;

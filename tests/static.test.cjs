@@ -35,7 +35,13 @@ test("privacy, report and migration assets are present", () => {
   assert.match(read("index.html"), /id="recording-mode"/);
   assert.match(read("index.html"), /id="claim-method" type="hidden"/);
   assert.match(read("index.html"), /id="delete-password" type="password" autocomplete="current-password"/);
+  assert.match(read("index.html"), /id="profile-name" type="text" maxlength="120" autocomplete="name"/);
+  assert.match(read("index.html"), /id="change-profile-email"/);
+  assert.match(read("index.html"), /id="account-current-password" type="password" autocomplete="current-password"/);
+  assert.match(read("index.html"), /id="sign-out-other-devices" type="checkbox" checked/);
   assert.match(read("app.js"), /signInWithPassword\(\{ email: currentUser\.email, password \}\)/);
+  assert.match(read("app.js"), /db\.auth\.updateUser\(\{ email \}, \{ emailRedirectTo: redirectTo \}\)/);
+  assert.match(read("app.js"), /db\.auth\.signOut\(\{ scope: "others" \}\)/);
   assert.match(read("supabase/account-reauthentication-migration.sql"), /Recent authentication required/);
   assert.match(read("index.html"), /id="compatibility-dialog"/);
   assert.match(read("index.html"), /id="environment-banner"/);
