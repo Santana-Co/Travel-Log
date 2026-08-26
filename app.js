@@ -430,7 +430,14 @@ async function calculateDistance() {
     $("#route-tip").textContent = normalizeRecordingMode(form.dataset.recordingMode) === "ato_logbook"
       ? "Route estimate calculated. Enter the journey's odometer readings; they determine the recorded distance."
       : "Distance calculated using the shared route service. Review it before saving.";
-  } catch (error) { alert(error.message || "Distance lookup failed. Check the addresses, then try again."); }
+  } catch (error) {
+    const message = error.message || "Distance lookup failed. Check the addresses, then try again.";
+    if (message.includes("enter the distance manually")) {
+      $("#route-tip").textContent = "Could not create a driving route. Enter the one-way distance manually, then save the trip.";
+      $("#distance").focus();
+    }
+    alert(message);
+  }
   finally { setButtonBusy(button, false); }
 }
 
