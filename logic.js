@@ -37,6 +37,16 @@
     const year = atoIncomeYear(date);
     return Object.prototype.hasOwnProperty.call(atoCentsRates, year) ? atoCentsRates[year] : null;
   }
+  function atoIncomeYearStart(date) {
+    const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(String(date || ""));
+    if (!match) return null;
+    const year = Number(match[1]);
+    return Number(match[2]) >= 7 ? year : year - 1;
+  }
+  function logbookValidityEnd(period) {
+    const startYear = atoIncomeYearStart(period?.startDate);
+    return startYear === null ? "" : `${startYear + 5}-06-30`;
+  }
   function claimMethodForMode(trip, recordingMode) {
     const selected = normalizeRecordingMode(recordingMode);
     if (selected === "ato_cents") return "ato_cents";
@@ -73,6 +83,17 @@
     const totalKilometres = Math.max(0, number(period.closingOdometer) - number(period.openingOdometer));
     const businessKilometres = trips.filter((trip) => trip.claimMethod === "ato_logbook" && String(trip.vehicleRegistration || "").toUpperCase() === String(period.vehicleRegistration || "").toUpperCase() && trip.date >= period.startDate && trip.date <= period.endDate).reduce((sum, trip) => sum + totalDistance(trip), 0);
     return { businessKilometres, totalKilometres, businessUsePercent: totalKilometres ? businessKilometres / totalKilometres * 100 : 0 };
+  }
+  function logbookAnnualSummary(record, period, trips = []) {
+    const totalKilometres = Math.max(0, number(record.closingOdometer) - number(record.openingOdometer));
+    const logbook = period ? logbookSummary(period, trips) : { businessUsePercent: 0 };
+    const estimatedBusinessKilometres = totalKilometres * logbook.businessUsePercent / 100;
+    const validUntil = period ? logbookValidityEnd(period) : "";
+    const validFromYear = period ? atoIncomeYearStart(period.startDate) : null;
+    const incomeYearStart = Number(record.incomeYearStart);
+    const incomeYearEnd = Number.isInteger(Number(record.incomeYearStart)) ? `${Number(record.incomeYearStart) + 1}-06-30` : "";
+    const isValid = Boolean(period && validFromYear !== null && incomeYearStart >= validFromYear && validUntil && incomeYearEnd && incomeYearEnd <= validUntil && !record.circumstancesChanged);
+    return { businessUsePercent: logbook.businessUsePercent, estimatedBusinessKilometres, isValid, totalKilometres, validUntil };
   }
 
   function filterTrips(trips, filters = {}) {
@@ -126,13 +147,22 @@
     return "";
   }
 
+  function validateAnnualOdometerRecord(record) {
+    if (!String(record.vehicleRegistration || "").trim()) return "Enter the vehicle registration.";
+    const incomeYearStart = Number(record.incomeYearStart);
+    if (!Number.isInteger(incomeYearStart) || incomeYearStart < 2000 || incomeYearStart > 2100) return "Enter the first year of the Australian financial year, such as 2026 for 2026–27.";
+    if (!Number.isFinite(Number(record.openingOdometer)) || !Number.isFinite(Number(record.closingOdometer)) || Number(record.openingOdometer) < 0 || Number(record.closingOdometer) <= Number(record.openingOdometer)) return "The financial-year closing odometer must be greater than the opening odometer.";
+    if (String(record.notes || "").length > 500) return "Annual odometer notes must be no more than 500 characters.";
+    return "";
+  }
+
   function csvCell(value) {
     let text = String(value ?? "");
     if (/^[\t\r\n ]*[=+@-]/.test(text)) text = `'${text}`;
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookSummary, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateLogbookPeriod, validateTrip };
+  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

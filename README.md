@@ -22,11 +22,15 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 - Duplicate frequent trips and keep private saved locations
 - Record vehicle registration and journey odometer readings
 - Separate employer reimbursements from ATO cents-per-kilometre estimates
-- Maintain 12-week ATO-style logbook periods and business-use summaries
+- Maintain representative 12-week ATO-style logbooks, their five-year validity, annual odometer records, and estimated annual business kilometres
 
 ## Run it on your computer
 
 Serve this directory from a local web server and open it in a browser. A configured Supabase account is required.
+
+## Test releases safely
+
+Use the isolated Cloudflare Pages, Supabase, and routing Worker setup in `STAGING.md` for pull-request and major-release testing. Staging builds display a permanent test-data banner and refuse production backend addresses. Complete `STAGING_SMOKE_TEST.md` before approving a major production release.
 
 ## Automatic distance calculation
 
@@ -35,7 +39,7 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
 
-Run the migration files in `supabase/` once in release order: privacy/security, reporting, stabilization, ATO/logbook, appearance/theme, recording mode, account reauthentication, then schema version. They add versioned privacy acknowledgement, self-service account deletion with recent-password confirmation, reporting fields, private saved locations and logbooks, validation constraints, cross-device appearance and recording preferences, hardened database functions, and an authenticated release-compatibility contract. Never place a Supabase service-role key in this repository or in browser code.
+Run the migration files in `supabase/` once in the order listed in `supabase/migrations.json`: privacy/security, reporting, stabilization, ATO/logbook, annual logbook income years, appearance/theme, recording mode, account reauthentication, then schema version. They add versioned privacy acknowledgement, self-service account deletion with recent-password confirmation, reporting fields, private saved locations and logbooks, annual odometer records, validation constraints, cross-device appearance and recording preferences, hardened database functions, and an authenticated release-compatibility contract. Never place a Supabase service-role key in this repository or in browser code.
 
 For future database changes, follow `RELEASE_CHECKLIST.md`: increase the browser and database schema versions together, apply the additive Supabase migration first, and only then merge the app release. If the contract cannot be verified, signed-in users see a safe retry screen instead of broken database errors.
 
