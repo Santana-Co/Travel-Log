@@ -28,4 +28,5 @@ dialog { background:var(--card); border:0; border-radius:14px; box-shadow:0 25px
 
 .profile-form { align-items:end; display:grid; gap:10px; grid-template-columns:1fr auto; }
 .profile-form .button { min-height:42px; }
+.full-width,.stop-row { position:relative; } .address-suggestions { background:var(--card); border:1px solid var(--field-border); border-radius:8px; box-shadow:0 12px 28px var(--shadow); display:grid; left:0; max-height:220px; overflow:auto; position:absolute; right:0; top:100%; z-index:4; } .address-suggestion { background:transparent; border:0; color:var(--ink); cursor:pointer; padding:10px 12px; text-align:left; } .address-suggestion:hover,.address-suggestion:focus { background:var(--subtle-hover); outline:none; }
 @media (max-width:640px) { .profile-form { grid-template-columns:1fr; } }

@@ -5,7 +5,7 @@ const root = path.join(__dirname, "..");
 const output = path.join(root, "dist-staging");
 const settings = {
   environment: "staging",
-  buildLabel: "Testing app · Version 2",
+  buildLabel: "Testing app · Version 3",
   supabaseUrl: process.env.TRAVEL_LOG_SUPABASE_URL,
   supabasePublishableKey: process.env.TRAVEL_LOG_SUPABASE_PUBLISHABLE_KEY,
   distanceApiUrl: process.env.TRAVEL_LOG_DISTANCE_API_URL,

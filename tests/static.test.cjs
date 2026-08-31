@@ -48,4 +48,9 @@ test("privacy, report and migration assets are present", () => {
   assert.match(read("config.js"), /environment: "production"/);
   assert.match(read("config.js"), /buildLabel: "Live app/);
   assert.match(read("index.html"), /id="build-label"/);
+  assert.match(read("app.js"), /url\.pathname = url\.pathname\.replace/);
+  assert.match(read("app.js"), /"\/suggest"/);
+  assert.match(read("app.js"), /Authorization: `Bearer \$\{session\.access_token\}`/);
+  assert.match(read("app.js"), /selectedAddressCoordinates/);
+  assert.match(read("privacy.html"), /receives address text while you type to provide suggestions/);
 });

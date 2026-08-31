@@ -24,6 +24,62 @@ let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
 let privacyResolver = null;
+const selectedAddressCoordinates = new WeakMap();
+const suggestionTimers = new WeakMap();
+
+function suggestionUrl(query) {
+  const url = new URL(distanceApiUrl);
+  url.pathname = url.pathname.replace(/\/distance$/, "/suggest");
+  url.searchParams.set("q", query);
+  return url;
+}
+
+function attachAddressSuggestions(input) {
+  const menu = document.createElement("div");
+  menu.className = "address-suggestions";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("aria-label", "Suggested addresses");
+  menu.hidden = true;
+  input.parentElement.append(menu);
+  const clear = () => { menu.replaceChildren(); menu.hidden = true; };
+  input.addEventListener("input", () => {
+    selectedAddressCoordinates.delete(input);
+    clearTimeout(suggestionTimers.get(input));
+    const query = input.value.trim();
+    if (query.length < 3) return clear();
+    suggestionTimers.set(input, setTimeout(async () => {
+      try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session?.access_token) return clear();
+        const response = await fetch(suggestionUrl(query), { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const data = await response.json();
+        if (!response.ok || input.value.trim() !== query) return clear();
+        const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+        menu.replaceChildren(...suggestions.flatMap((suggestion) => {
+          if (typeof suggestion?.label !== "string" || !Array.isArray(suggestion?.coordinates) || suggestion.coordinates.length !== 2 || !suggestion.coordinates.every(Number.isFinite)) return [];
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "address-suggestion";
+          option.setAttribute("role", "option");
+          option.textContent = suggestion.label;
+          option.addEventListener("click", () => {
+            input.value = suggestion.label;
+            selectedAddressCoordinates.set(input, suggestion.coordinates);
+            clear();
+          });
+          return [option];
+        }));
+        menu.hidden = !menu.childElementCount;
+      } catch { clear(); }
+    }, 500));
+  });
+  input.addEventListener("blur", () => setTimeout(clear, 150));
+}
+
+function routeLocation(input) {
+  const coordinates = selectedAddressCoordinates.get(input);
+  return coordinates ? { coordinates } : input.value.trim();
+}
 
 if (appEnvironment === "staging") {
   document.documentElement.dataset.environment = "staging";
@@ -308,6 +364,7 @@ function addStop(value = "") {
   input.maxLength = 250;
   input.placeholder = "Stop address";
   input.value = value;
+  attachAddressSuggestions(input);
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "text-button";
@@ -340,6 +397,8 @@ function configureTripMode(mode, trip) {
 
 function openForm(trip, duplicate = false) {
   form.reset();
+  selectedAddressCoordinates.delete($("#start-address"));
+  selectedAddressCoordinates.delete($("#end-address"));
   $("#form-title").textContent = duplicate ? "Duplicate trip" : (trip ? "Edit trip" : "Add a trip");
   $("#trip-id").value = duplicate ? "" : (trip?.id || "");
   $("#trip-date").value = duplicate ? new Date().toISOString().slice(0, 10) : (trip?.date || new Date().toISOString().slice(0, 10));
@@ -484,7 +543,8 @@ async function calculateDistance() {
   try {
     const { data: { session } } = await db.auth.getSession();
     if (!session?.access_token) throw new Error("Your session has expired. Sign in again, then retry.");
-    const response = await fetch(distanceApiUrl, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ start, stops, end }) });
+    const stopInputs = [...document.querySelectorAll(".stop-address")].filter((input) => input.value.trim());
+    const response = await fetch(distanceApiUrl, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ start: routeLocation($("#start-address")), stops: stopInputs.map(routeLocation), end: routeLocation($("#end-address")) }) });
     const data = await response.json();
     if (!response.ok || typeof data.distanceKm !== "number") throw new Error(data.error || "Could not calculate this route.");
     $("#distance").value = data.distanceKm.toFixed(1);
@@ -774,6 +834,8 @@ $("#clear-filters").addEventListener("click", () => { $("#search").value = ""; $
 $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
+attachAddressSuggestions($("#start-address"));
+attachAddressSuggestions($("#end-address"));
 $("#add-stop-button").addEventListener("click", () => addStop());
 $("#trip-date").addEventListener("change", updateTripModeTip);
 

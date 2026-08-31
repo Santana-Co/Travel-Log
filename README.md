@@ -9,6 +9,7 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 - Choose Light, Dark, or System appearance and keep the preference across devices
 - Choose Employer/general, ATO cents-per-kilometre, or ATO logbook/odometer recording and keep the preference across devices
 - Add multiple stops to a trip
+- Choose recognised Australian addresses from suggestions while entering a route
 - Track start and end addresses, date, one-way distance, notes, and round-trip status
 - Open each route in Google Maps to confirm the driving distance
 - Automatic driving-distance calculation for all visitors
@@ -34,7 +35,7 @@ Use the isolated Cloudflare Pages, Supabase, and routing Worker setup in `STAGIN
 
 ## Automatic distance calculation
 
-The app uses a shared secure service to calculate driving distance. Visitors do not need an API key.
+The app uses a shared secure service to suggest Australian addresses and calculate driving distance. Visitors do not need an API key.
 The service accepts distance requests only from signed-in Travel Log users.
 
 ## Supabase privacy controls
