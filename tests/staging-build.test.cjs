@@ -11,7 +11,7 @@ test("staging build produces an isolated no-index site", () => {
   execFileSync(process.execPath, [path.join(root, "scripts", "build-staging.cjs")], {
     env: {
       ...process.env,
-      TRAVEL_LOG_SUPABASE_URL: "https://staging-example.supabase.co",
+      TRAVEL_LOG_SUPABASE_URL: " https://staging-example.supabase.co ",
       TRAVEL_LOG_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_staging_test_key",
       TRAVEL_LOG_DISTANCE_API_URL: "https://travel-log-distance-api-staging.example.workers.dev/distance",
     },
@@ -20,6 +20,7 @@ test("staging build produces an isolated no-index site", () => {
   const index = fs.readFileSync(path.join(output, "index.html"), "utf8");
   assert.match(config, /"environment": "staging"/);
   assert.match(config, /staging-example\.supabase\.co/);
+  assert.doesNotMatch(config, /supabase\.co\s+"/);
   assert.doesNotMatch(config, /caqgnnlgtomcmkpafvoc/);
   assert.match(index, /noindex, nofollow/);
   assert.match(index, /connect-src 'self' https:\/\/staging-example\.supabase\.co wss:\/\/staging-example\.supabase\.co https:\/\/travel-log-distance-api-staging\.example\.workers\.dev;/);

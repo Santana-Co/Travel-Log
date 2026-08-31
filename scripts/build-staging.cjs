@@ -5,7 +5,7 @@ const root = path.join(__dirname, "..");
 const output = path.join(root, "dist-staging");
 const settings = {
   environment: "staging",
-  buildLabel: "Testing app · Version 2",
+  buildLabel: "Testing app · Version 3",
   supabaseUrl: process.env.TRAVEL_LOG_SUPABASE_URL,
   supabasePublishableKey: process.env.TRAVEL_LOG_SUPABASE_PUBLISHABLE_KEY,
   distanceApiUrl: process.env.TRAVEL_LOG_DISTANCE_API_URL,
@@ -32,6 +32,8 @@ if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(required("TRAVEL_LOG_SUPABASE_PUBLIS
 }
 const distanceApi = secureUrl("TRAVEL_LOG_DISTANCE_API_URL", settings.distanceApiUrl);
 if (distanceApi.hostname === "travel-log-distance-api.jfsantana0691.workers.dev") throw new Error("A staging build must never use the production routing Worker.");
+settings.supabaseUrl = supabase.origin;
+settings.distanceApiUrl = distanceApi.href;
 
 const assets = [
   "app.js",
