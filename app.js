@@ -7,6 +7,7 @@ const privacyVersion = "2026-08-20-ato-logbook";
 const requiredSchemaVersion = 2;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
+$("#build-label").textContent = runtimeConfig.buildLabel || (appEnvironment === "staging" ? "Testing app" : "Live app");
 const dialog = $("#trip-dialog");
 const form = $("#trip-form");
 const privacyDialog = $("#privacy-dialog");

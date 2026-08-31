@@ -46,4 +46,6 @@ test("privacy, report and migration assets are present", () => {
   assert.match(read("index.html"), /id="compatibility-dialog"/);
   assert.match(read("index.html"), /id="environment-banner"/);
   assert.match(read("config.js"), /environment: "production"/);
+  assert.match(read("config.js"), /buildLabel: "Live app/);
+  assert.match(read("index.html"), /id="build-label"/);
 });
