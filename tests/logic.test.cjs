@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
 
 test("uses the local calendar date around Brisbane midnight", () => {
   const originalTimeZone = process.env.TZ;
@@ -13,6 +13,33 @@ test("uses the local calendar date around Brisbane midnight", () => {
     if (originalTimeZone === undefined) delete process.env.TZ;
     else process.env.TZ = originalTimeZone;
   }
+});
+
+test("uses local calendar boundaries across Australian time zones", () => {
+  const originalTimeZone = process.env.TZ;
+  const cases = [
+    ["Australia/Perth", "2026-01-01T16:30:00.000Z", "2026-01-02"],
+    ["Australia/Darwin", "2026-01-01T14:45:00.000Z", "2026-01-02"],
+    ["Australia/Adelaide", "2026-01-01T13:45:00.000Z", "2026-01-02"],
+    ["Australia/Sydney", "2026-10-03T14:30:00.000Z", "2026-10-04"],
+  ];
+  try {
+    for (const [timeZone, instant, expected] of cases) {
+      process.env.TZ = timeZone;
+      assert.equal(localCalendarDate(new Date(instant)), expected, timeZone);
+    }
+  } finally {
+    if (originalTimeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimeZone;
+  }
+});
+
+test("defaults new and duplicated trips to the local day", () => {
+  const today = "2026-09-01";
+  assert.deepEqual(tripCalendarDates(undefined, false, today), { startDate: today, endDate: today });
+  assert.deepEqual(tripCalendarDates({ date: "2026-08-20", endDate: "2026-08-21" }, true, today), { startDate: today, endDate: today });
+  assert.deepEqual(tripCalendarDates({ date: "2026-08-20", endDate: "2026-08-21" }, false, today), { startDate: "2026-08-20", endDate: "2026-08-21" });
+  assert.deepEqual(tripCalendarDates({ date: "2026-08-20" }, false, today), { startDate: "2026-08-20", endDate: "2026-08-20" });
 });
 
 const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };

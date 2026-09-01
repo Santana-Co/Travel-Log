@@ -14,7 +14,7 @@ const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
 const compatibilityDialog = $("#compatibility-dialog");
-const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
@@ -340,11 +340,11 @@ function configureTripMode(mode, trip) {
 
 function openForm(trip, duplicate = false) {
   form.reset();
-  const today = localCalendarDate();
+  const dates = tripCalendarDates(trip, duplicate);
   $("#form-title").textContent = duplicate ? "Duplicate trip" : (trip ? "Edit trip" : "Add a trip");
   $("#trip-id").value = duplicate ? "" : (trip?.id || "");
-  $("#trip-date").value = duplicate ? today : (trip?.date || today);
-  $("#trip-end-date").value = duplicate ? today : (trip?.endDate || trip?.date || today);
+  $("#trip-date").value = dates.startDate;
+  $("#trip-end-date").value = dates.endDate;
   $("#distance").value = trip?.distance || "";
   $("#purpose").value = trip?.purpose || "";
   $("#client-project").value = trip?.clientProject || "";

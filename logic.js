@@ -15,10 +15,25 @@
   });
   function number(value) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
   function localCalendarDate(date = new Date()) {
+    // Calendar dates follow the user's device locale. They are not UTC timestamps.
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+  }
+  function tripCalendarDates(trip, duplicate = false, today = localCalendarDate()) {
+    if (duplicate) return { startDate: today, endDate: today };
+    const startDate = trip?.date || today;
+    return { startDate, endDate: trip?.endDate || startDate };
+  }
+  function isCalendarDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    if (!match) return false;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
   }
   function odometerDistance(trip) {
     const start = Number(trip.odometerStart);
@@ -117,9 +132,8 @@
 
   function validateTrip(trip) {
     const date = String(trip.date || "");
-    const parsedDate = new Date(`${date}T00:00:00Z`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) return "Enter a valid trip date.";
-    if (trip.endDate && (trip.endDate < date || !/^\d{4}-\d{2}-\d{2}$/.test(trip.endDate))) return "Journey end date cannot be before its start date.";
+    if (!isCalendarDate(date)) return "Enter a valid trip date.";
+    if (trip.endDate && (!isCalendarDate(trip.endDate) || trip.endDate < date)) return "Journey end date cannot be before its start date.";
     if (!Number.isFinite(Number(trip.distance)) || Number(trip.distance) <= 0 || Number(trip.distance) > 100000) return "Distance must be greater than 0 and no more than 100,000 km.";
     if (typeof trip.start !== "string" || trip.start.trim().length < 3 || trip.start.length > 250) return "Starting address must be between 3 and 250 characters.";
     if (typeof trip.end !== "string" || trip.end.trim().length < 3 || trip.end.length > 250) return "Ending address must be between 3 and 250 characters.";
@@ -168,7 +182,7 @@
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
+  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);
