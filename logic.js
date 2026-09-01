@@ -14,6 +14,12 @@
     "2026–27": 91,
   });
   function number(value) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
+  function localCalendarDate(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
   function odometerDistance(trip) {
     const start = Number(trip.odometerStart);
     const end = Number(trip.odometerEnd);
@@ -162,7 +168,7 @@
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
+  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);
