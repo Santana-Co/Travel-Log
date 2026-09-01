@@ -1,6 +1,19 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
+
+test("uses the local calendar date around Brisbane midnight", () => {
+  const originalTimeZone = process.env.TZ;
+  try {
+    process.env.TZ = "Australia/Brisbane";
+    const afterMidnight = new Date("2026-08-31T14:30:00.000Z");
+    assert.equal(afterMidnight.toISOString().slice(0, 10), "2026-08-31");
+    assert.equal(localCalendarDate(afterMidnight), "2026-09-01");
+  } finally {
+    if (originalTimeZone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalTimeZone;
+  }
+});
 
 const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
 

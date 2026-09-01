@@ -14,7 +14,7 @@ const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
 const compatibilityDialog = $("#compatibility-dialog");
-const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
@@ -340,10 +340,11 @@ function configureTripMode(mode, trip) {
 
 function openForm(trip, duplicate = false) {
   form.reset();
+  const today = localCalendarDate();
   $("#form-title").textContent = duplicate ? "Duplicate trip" : (trip ? "Edit trip" : "Add a trip");
   $("#trip-id").value = duplicate ? "" : (trip?.id || "");
-  $("#trip-date").value = duplicate ? new Date().toISOString().slice(0, 10) : (trip?.date || new Date().toISOString().slice(0, 10));
-  $("#trip-end-date").value = duplicate ? new Date().toISOString().slice(0, 10) : (trip?.endDate || trip?.date || new Date().toISOString().slice(0, 10));
+  $("#trip-date").value = duplicate ? today : (trip?.date || today);
+  $("#trip-end-date").value = duplicate ? today : (trip?.endDate || trip?.date || today);
   $("#distance").value = trip?.distance || "";
   $("#purpose").value = trip?.purpose || "";
   $("#client-project").value = trip?.clientProject || "";
@@ -706,7 +707,7 @@ $("#saved-location-list").addEventListener("click", async (event) => {
   if (error) return alert(`Location could not be removed: ${error.message}`);
   await loadSavedLocations();
 });
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${new Date().toISOString().slice(0, 10)}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, logbook_income_years: annualOdometerRecords, trips }));
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${localCalendarDate()}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, logbook_income_years: annualOdometerRecords, trips }));
 $("#delete-account").addEventListener("click", async () => {
   const password = $("#delete-password").value;
   if (!password) return alert("Enter your current password to confirm account deletion.");
