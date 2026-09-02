@@ -23,7 +23,7 @@ Use this checklist for every production release.
 2. Increase the browser's `requiredSchemaVersion` in `app.js` only if the browser release depends on the new schema. It is a minimum supported database version and may remain lower during a compatible staged rollout.
 3. Add the migration to `supabase/migrations.json` immediately before `schema-version-migration.sql` and increase its `schemaVersion`.
 4. Update the version inserted by `supabase/schema-version-migration.sql` to the same number.
-5. Run all outstanding migrations in the Supabase SQL Editor **before** merging the app pull request.
+5. If the existing browser minimum remains compatible, merge the repository-owned migration before applying it to production. Apply and verify the production migration before deploying any browser release whose `requiredSchemaVersion` depends on it.
 6. Verify the contract in the SQL Editor:
 
    ```sql
