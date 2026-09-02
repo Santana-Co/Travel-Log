@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "releaseOrder": [
     "base-schema.sql",
     "privacy-security-migration.sql",
@@ -10,6 +10,7 @@
     "appearance-theme-migration.sql",
     "recording-mode-migration.sql",
     "account-reauthentication-migration.sql",
+    "account-deletion-time-variable-migration.sql",
     "schema-version-migration.sql"
   ]
 }

@@ -1,1 +1,3 @@
 dist-staging/
+.env*
+!.env.integration.example

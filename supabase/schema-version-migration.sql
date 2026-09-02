@@ -1,5 +1,5 @@
 -- Santana-Co Travel Log database compatibility contract.
--- Apply this migration before deploying an app release that requires schema version 2.
+-- Apply this migration before deploying an app release that requires schema version 3.
 
 create schema if not exists private;
 
@@ -12,7 +12,7 @@ create table if not exists private.app_schema_state (
 revoke all on table private.app_schema_state from public, anon, authenticated;
 
 insert into private.app_schema_state (singleton, schema_version)
-values (true, 2)
+values (true, 3)
 on conflict (singleton) do update
 set schema_version = greatest(private.app_schema_state.schema_version, excluded.schema_version),
     updated_at = now();

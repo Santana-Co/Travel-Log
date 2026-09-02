@@ -28,6 +28,8 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 
 Serve this directory from a local web server and open it in a browser. A configured Supabase account is required.
 
+Run the credential-free unit and structural checks with `npm test`. Live RLS verification is intentionally separate: follow [tests/integration/README.md](tests/integration/README.md), export only isolated staging/test Supabase values, then run `npm run test:integration`. The integration runner refuses the known production project and uses privileged credentials only to create and clean up synthetic users; all isolation assertions run as those authenticated users.
+
 ## Test releases safely
 
 Use the isolated Cloudflare Pages, Supabase, and routing Worker setup in `STAGING.md` for pull-request and major-release testing. Staging builds display a permanent test-data banner and refuse production backend addresses. Complete `STAGING_SMOKE_TEST.md` before approving a major production release.

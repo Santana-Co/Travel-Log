@@ -33,3 +33,12 @@ test("signed-in startup checks the authenticated compatibility RPC", () => {
   const showApp = app.slice(app.indexOf("async function showApp"), app.indexOf("function showAuth"));
   assert.ok(showApp.indexOf("ensureSchemaCompatible()") < showApp.indexOf("ensurePrivacyAccepted()"));
 });
+
+test("account deletion compares JWT issue time using a non-reserved epoch variable", () => {
+  const accountDeletionMigration = fs.readFileSync(path.join(root, "supabase", "account-deletion-time-variable-migration.sql"), "utf8");
+  assert.match(accountDeletionMigration, /current_epoch bigint := extract\(epoch from now\(\)\)::bigint/i);
+  assert.match(accountDeletionMigration, /current_epoch - issued_at > 300/i);
+  assert.doesNotMatch(accountDeletionMigration, /current_time - issued_at/i);
+  assert.match(accountDeletionMigration, /security invoker/i);
+  assert.match(accountDeletionMigration, /perform private\.delete_my_account_internal\(\)/i);
+});

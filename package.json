@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "build:staging": "node scripts/build-staging.cjs",
-    "test": "node --test && node --check app.js && node --check report.js && node --check logic.js && node --check theme.js"
+    "test": "node --test && node --check app.js && node --check report.js && node --check logic.js && node --check theme.js",
+    "test:integration": "node --env-file-if-exists=.env.integration.local --test tests/integration/tenant-isolation.integration.cjs"
   }
 }
