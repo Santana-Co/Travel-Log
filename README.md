@@ -28,6 +28,8 @@ Santana-Co's pilot app for recording work trips. Users sign in and their private
 
 Serve this directory from a local web server and open it in a browser. A configured Supabase account is required.
 
+Run the credential-free unit and structural checks with `npm test`. Live RLS verification is intentionally separate: follow [tests/integration/README.md](tests/integration/README.md), export only isolated staging/test Supabase values, then run `npm run test:integration`. The integration runner refuses the known production project and uses privileged credentials only to create and clean up synthetic users; all isolation assertions run as those authenticated users.
+
 ## Test releases safely
 
 Use the isolated Cloudflare Pages, Supabase, and routing Worker setup in `STAGING.md` for pull-request and major-release testing. Staging builds display a permanent test-data banner and refuse production backend addresses. Complete `STAGING_SMOKE_TEST.md` before approving a major production release.
@@ -41,7 +43,7 @@ The service accepts distance requests only from signed-in Travel Log users.
 
 Run the migration files in `supabase/` once in the order listed in `supabase/migrations.json`: privacy/security, reporting, stabilization, ATO/logbook, annual logbook income years, appearance/theme, recording mode, account reauthentication, then schema version. They add versioned privacy acknowledgement, self-service account deletion with recent-password confirmation, reporting fields, private saved locations and logbooks, annual odometer records, validation constraints, cross-device appearance and recording preferences, hardened database functions, and an authenticated release-compatibility contract. Never place a Supabase service-role key in this repository or in browser code.
 
-For future database changes, follow `RELEASE_CHECKLIST.md`: increase the browser and database schema versions together, apply the additive Supabase migration first, and only then merge the app release. If the contract cannot be verified, signed-in users see a safe retry screen instead of broken database errors.
+For future database changes, follow `RELEASE_CHECKLIST.md`: advance the repository database schema version for each migration, and increase the browser minimum required schema version only when the browser actually depends on that schema. The browser minimum must never exceed the deployed database version. If the contract cannot be verified, signed-in users see a safe retry screen instead of broken database errors.
 
 Changing the recording method affects new-trip fields, guidance, dashboard estimates, and report summaries. Existing trips retain the workflow under which they were recorded, so switching methods does not discard or silently relabel historical records.
 
