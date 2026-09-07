@@ -6,6 +6,10 @@ const test = require("node:test");
 const root = path.join(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const migration = fs.readFileSync(path.join(root, "supabase", "schema-version-migration.sql"), "utf8");
+const reconciliationMigration = fs.readFileSync(
+  path.join(root, "supabase", "production-schema-reconciliation-migration.sql"),
+  "utf8",
+);
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "supabase", "migrations.json"), "utf8"));
 
 test("repository schema and browser minimum versions form a valid compatibility contract", () => {
@@ -27,6 +31,21 @@ test("every Supabase migration is included once in release order", () => {
   assert.deepEqual([...manifest.releaseOrder].sort(), files);
   assert.equal(new Set(manifest.releaseOrder).size, manifest.releaseOrder.length);
   assert.equal(manifest.releaseOrder.at(-1), "schema-version-migration.sql");
+});
+
+test("production reconciliation is fail-closed and preserves schema version 2", () => {
+  assert.match(reconciliationMigration, /begin;/i);
+  assert.match(reconciliationMigration, /pg_advisory_xact_lock/i);
+  assert.match(reconciliationMigration, /raise exception 'trips\.stops contains data that cannot be safely converted/i);
+  assert.match(reconciliationMigration, /alter column stops type jsonb using to_jsonb\(stops\)/i);
+  assert.match(reconciliationMigration, /Canonical profile ownership policies are missing or unexpected/i);
+  assert.match(reconciliationMigration, /Canonical trip ownership policies are missing or unexpected/i);
+  assert.match(reconciliationMigration, /drop trigger if exists create_profile_after_signup on auth\.users/i);
+  assert.match(reconciliationMigration, /drop function if exists public\.create_profile_for_new_user\(\)/i);
+  assert.doesNotMatch(reconciliationMigration, /(?:delete\s+from|truncate(?:\s+table)?)\s+public\.(?:profiles|trips|saved_locations|logbook_periods|logbook_income_years)/i);
+  assert.doesNotMatch(reconciliationMigration, /update\s+public\.(?:profiles|trips)[\s\S]*?set\s+(?:id|user_id)\s*=/i);
+  assert.doesNotMatch(reconciliationMigration, /(?:insert\s+into|update|delete\s+from)\s+private\.app_schema_state/i);
+  assert.match(reconciliationMigration, /commit;/i);
 });
 
 test("signed-in startup checks the authenticated compatibility RPC", () => {
