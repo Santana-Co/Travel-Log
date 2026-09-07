@@ -2,6 +2,7 @@
   "schemaVersion": 3,
   "releaseOrder": [
     "base-schema.sql",
+    "production-schema-reconciliation-migration.sql",
     "privacy-security-migration.sql",
     "reporting-migration.sql",
     "stabilization-migration.sql",
