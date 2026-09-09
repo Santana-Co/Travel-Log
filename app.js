@@ -4,7 +4,7 @@ if (!runtimeConfig?.supabaseUrl || !runtimeConfig?.supabasePublishableKey || !ru
 const { supabaseUrl, supabasePublishableKey, distanceApiUrl } = runtimeConfig;
 const appEnvironment = runtimeConfig.environment === "staging" ? "staging" : "production";
 const privacyVersion = "2026-08-20-ato-logbook";
-const requiredSchemaVersion = 2;
+const requiredSchemaVersion = 3;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 $("#build-label").textContent = runtimeConfig.buildLabel || (appEnvironment === "staging" ? "Testing app" : "Live app");

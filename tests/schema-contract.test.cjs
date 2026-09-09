@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const root = path.join(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
@@ -21,9 +22,37 @@ test("repository schema and browser minimum versions form a valid compatibility 
   const repositoryVersion = Number(databaseVersion[1]);
   const isValidContract = (minimumVersion) => minimumVersion <= repositoryVersion;
 
+  assert.equal(browserMinimum, 3);
   assert.equal(repositoryVersion, manifest.schemaVersion);
   assert.ok(isValidContract(browserMinimum));
   assert.equal(isValidContract(repositoryVersion + 1), false);
+});
+
+test("browser enforces schema version 3 as a fail-closed minimum", async () => {
+  const browserMinimum = Number(app.match(/const requiredSchemaVersion = (\d+);/)[1]);
+  const compatibilitySource = app.slice(
+    app.indexOf("async function ensureSchemaCompatible"),
+    app.indexOf("function showCompatibilityIssue"),
+  );
+  const context = {
+    db: { rpc: async () => ({ data: 3, error: null }) },
+  };
+  vm.runInNewContext(
+    `const requiredSchemaVersion = ${browserMinimum};\n${compatibilitySource}\nglobalThis.ensureSchemaCompatible = ensureSchemaCompatible;`,
+    context,
+  );
+
+  const check = async (data, error = null) => {
+    context.db.rpc = async () => ({ data, error });
+    return context.ensureSchemaCompatible();
+  };
+
+  assert.equal((await check(2)).compatible, false);
+  assert.equal((await check(3)).compatible, true);
+  assert.equal((await check(4)).compatible, true);
+  assert.equal((await check(undefined)).compatible, false);
+  assert.equal((await check("invalid")).compatible, false);
+  assert.equal((await check(null, new Error("RPC unavailable"))).compatible, false);
 });
 
 test("every Supabase migration is included once in release order", () => {
@@ -55,7 +84,13 @@ test("signed-in startup checks the authenticated compatibility RPC", () => {
   assert.match(migration, /revoke all on function public\.get_app_schema_version\(\) from public, anon/i);
   assert.match(migration, /notify pgrst, 'reload schema'/i);
   const showApp = app.slice(app.indexOf("async function showApp"), app.indexOf("function showAuth"));
+  const compatibilityIssue = app.slice(app.indexOf("function showCompatibilityIssue"), app.indexOf("async function showApp"));
   assert.ok(showApp.indexOf("ensureSchemaCompatible()") < showApp.indexOf("ensurePrivacyAccepted()"));
+  assert.match(showApp, /if \(!schema\.compatible\) \{\s*showCompatibilityIssue\(schema\.message\);\s*return;/);
+  assert.ok(showApp.indexOf('$("#app-view").hidden = true') < showApp.indexOf("ensureSchemaCompatible()"));
+  assert.ok(showApp.indexOf("ensureSchemaCompatible()") < showApp.indexOf('$("#app-view").hidden = false'));
+  assert.ok(showApp.indexOf("ensureSchemaCompatible()") < showApp.indexOf("loadTrips()"));
+  assert.match(compatibilityIssue, /compatibilityDialog\.showModal\(\)/);
 });
 
 test("account deletion compares JWT issue time using a non-reserved epoch variable", () => {
