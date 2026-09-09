@@ -19,6 +19,13 @@ test("production pages load pinned and local scripts in the required order", () 
   assert.ok(report.indexOf("logic.js") < report.indexOf("report.js"));
 });
 
+test("trip forms use the tested local calendar-date rules", () => {
+  const app = read("app.js");
+  const openForm = app.slice(app.indexOf("function openForm"), app.indexOf("function exportCsv"));
+  assert.match(openForm, /tripCalendarDates\(trip, duplicate\)/);
+  assert.doesNotMatch(openForm, /toISOString\(\)\.slice\(0, 10\)/);
+});
+
 test("privacy, report and migration assets are present", () => {
   for (const name of ["privacy.html", "ato-guide.html", "report.html", "report.css", "theme.js", "config.js", "supabase/base-schema.sql", "supabase/privacy-security-migration.sql", "supabase/reporting-migration.sql", "supabase/stabilization-migration.sql", "supabase/ato-logbook-migration.sql", "supabase/logbook-income-years-migration.sql", "supabase/appearance-theme-migration.sql", "supabase/recording-mode-migration.sql", "supabase/account-reauthentication-migration.sql", "supabase/schema-version-migration.sql"]) {
     assert.ok(fs.existsSync(path.join(root, name)), name);
