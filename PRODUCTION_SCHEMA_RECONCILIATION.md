@@ -1,10 +1,10 @@
 # Production schema reconciliation
 
-This note records the verified Task #4A baseline and the release order required before Travel Log advances production to database schema version 3. It contains no credentials or user data.
+This note records the verified production reconciliation and recovery baseline that preceded Travel Log's release to application schema version 3. It contains no credentials or user data.
 
 ## Why reconciliation is required
 
-Production currently reports application schema version 2, but parts of its manually evolved schema differ from the repository bootstrap schema and schema-version-3 staging database:
+Before reconciliation, production reported application schema version 2 while parts of its manually evolved schema differed from the repository bootstrap schema and schema-version-3 staging database:
 
 - `profiles.updated_at` and the 120-character full-name constraint are absent.
 - `trips.stops` is `text[]` rather than the canonical JSONB ordered string array, and the JSON-array constraint is absent.
@@ -22,16 +22,11 @@ The restore reproduced the Travel Log application schema and data. It did not fu
 
 The reconciliation migration was applied to the disposable production restore and then applied again successfully to confirm idempotence. Application row counts and privacy-safe data fingerprints were preserved. A second clean restore of the original backup reproduced the pre-reconciliation schema and matching application-data fingerprints.
 
-## Required production execution order
+## Execution outcome and reusable order
 
-1. Review and merge the repository-owned reconciliation migration while the browser minimum and production database remain at schema version 2.
-2. Immediately before execution, repeat the production identity, schema-version, schema-shape, and data preflight checks and confirm the private backup remains available and unchanged.
-3. Apply only `supabase/production-schema-reconciliation-migration.sql` through an approved Supabase migration path.
-4. Verify production row counts, stop-array conversion, constraints, indexes, triggers/functions, grants, RLS enablement, ownership policies, and `get_app_schema_version() = 2`.
-5. Smoke-test the production browser while it still supports schema version 2.
-6. Only after reconciliation is verified may the separate Task #4 schema-version-3/account-deletion migration resume.
+The repository-owned reconciliation was merged and applied after a fresh identity/schema/data preflight and backup checksum verification. Production row counts and ownership identifiers were preserved; `trips.stops` became canonical JSONB; intended constraints, indexes, triggers/functions, grants, RLS, and policies were verified; and the application schema remained version 2 during its compatibility smoke test. The separate account-deletion/schema-version migration was then applied and verified, followed by browser minimum-version enforcement. Production, staging, the repository manifest, and the current browser minimum now report or require version 3.
 
-Production has not yet been modified by Task #4A.
+Future production migrations should reuse the same order: merge the repository-owned migration while compatibility permits, repeat preflight and recovery checks immediately before execution, apply only the approved SQL over a migration-safe encrypted connection, verify data and security boundaries, then deploy any dependent browser minimum increase.
 
 ## Rollback strategy
 

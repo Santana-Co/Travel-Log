@@ -1,62 +1,98 @@
 # Travel Log
 
-Santana-Co's pilot app for recording work trips. Users sign in and their private records are stored in Supabase under row-level access controls.
+Travel Log is an Australian work-travel, compliance, and evidence web pilot. Signed-in users can record private trips, calculate or enter distance, maintain ATO-style kilometre/logbook records, filter totals, and export accountant-friendly data. It is not yet a commercially complete SaaS product.
+
+## Current status and architecture
+
+The responsive static application is deployed from `main` through GitHub Pages. Browser JavaScript talks directly to Supabase Auth, PostgREST, and RPCs; PostgreSQL constraints and RLS enforce tenant ownership. A protected Cloudflare Worker mediates route-distance requests to an external routing provider.
+
+The current repository/database schema and browser minimum supported schema are both version **3**. Startup accepts version 3 or higher and fails safely on missing, invalid, errored, or older versions.
+
+Live staging tests have verified two-user tenant isolation across the five private application tables and relevant RPCs. Production schema drift, account deletion, and local calendar-date handling have been corrected and verified. A logical backup and disposable PostgreSQL restore validated application schema/data recovery, but full managed Supabase recovery remains **PARTIALLY VERIFIED**.
 
 ## Features
 
-- Add, edit, search, and delete trips
-- Create an account and use trips across devices
-- Choose Light, Dark, or System appearance and keep the preference across devices
-- Choose Employer/general, ATO cents-per-kilometre, or ATO logbook/odometer recording and keep the preference across devices
-- Add multiple stops to a trip
-- Track start and end addresses, date, one-way distance, notes, and round-trip status
-- Open each route in Google Maps to confirm the driving distance
-- Automatic driving-distance calculation for all visitors
-- View total distance and current-month distance
-- Export all records to a CSV report
-- Download account data and permanently delete an account
-- Review and acknowledge the Privacy & Security Notice
-- Filter trips by date and client or project
-- Track purpose, vehicle, and an optional reimbursement rate
-- Export filtered CSV reports or print a clean report to PDF
-- Duplicate frequent trips and keep private saved locations
-- Record vehicle registration and journey odometer readings
-- Separate employer reimbursements from ATO cents-per-kilometre estimates
-- Maintain representative 12-week ATO-style logbooks, their five-year validity, annual odometer records, and estimated annual business kilometres
+- Email/password accounts, private cloud records, privacy acceptance, data export, and reauthenticated account deletion
+- Trip creation, editing, duplication, deletion, multiple ordered stops, round trips, search, and filters
+- Protected driving-distance calculation plus manual distance entry and Google Maps route links
+- Saved locations and per-trip vehicle/registration details
+- Employer/general, ATO cents-per-kilometre, and representative-logbook/odometer recording modes
+- Australian financial-year rates, caps, logbook estimates, filtered CSV, JSON account export, and printable reports
+- Cross-device appearance and recording-mode preferences
 
-## Run it on your computer
+ATO outputs are estimates and record-keeping aids, not personalised tax advice.
 
-Serve this directory from a local web server and open it in a browser. A configured Supabase account is required.
+## Repository map
 
-Run the credential-free unit and structural checks with `npm test`. Live RLS verification is intentionally separate: follow [tests/integration/README.md](tests/integration/README.md), export only isolated staging/test Supabase values, then run `npm run test:integration`. The integration runner refuses the known production project and uses privileged credentials only to create and clean up synthetic users; all isolation assertions run as those authenticated users.
+```text
+app.js, logic.js, index.html, styles.css   Browser application and domain logic
+report.html, report.js, report.css          Printable report
+config.js                                   Public production browser configuration
+supabase/                                   Bootstrap schema and ordered migrations
+scripts/                                    Isolated staging build
+tests/                                      Unit, contract, build, and live integration tests
+docs/product/                               Product and commercial direction
+docs/engineering/                           Architecture, standards, and technical debt
+docs/decisions/                             Durable decisions
+CODEX_INSTRUCTIONS.md                       Codex operating rules
+```
 
-## Test releases safely
+## Local setup
 
-Use the isolated Cloudflare Pages, Supabase, and routing Worker setup in `STAGING.md` for pull-request and major-release testing. Staging builds display a permanent test-data banner and refuse production backend addresses. Complete `STAGING_SMOKE_TEST.md` before approving a major production release.
+Prerequisites are Node.js 24 and a local static HTTP server. There are no npm runtime dependencies; the browser loads a pinned Supabase client from jsDelivr.
 
-## Automatic distance calculation
+From the repository root, for example:
 
-The app uses a shared secure service to calculate driving distance. Visitors do not need an API key.
-The service accepts distance requests only from signed-in Travel Log users.
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1
+```
 
-## Supabase privacy controls
+Open `http://127.0.0.1:8000/`. Do not open `index.html` directly.
 
-Run the migration files in `supabase/` once in the order listed in `supabase/migrations.json`: privacy/security, reporting, stabilization, ATO/logbook, annual logbook income years, appearance/theme, recording mode, account reauthentication, then schema version. They add versioned privacy acknowledgement, self-service account deletion with recent-password confirmation, reporting fields, private saved locations and logbooks, annual odometer records, validation constraints, cross-device appearance and recording preferences, hardened database functions, and an authenticated release-compatibility contract. Never place a Supabase service-role key in this repository or in browser code.
+Useful signed-in local operation is not fully self-contained: it requires compatible Supabase and routing services, Auth redirect configuration, applied migrations, and credentials intentionally absent from this repository. Prefer an isolated environment and synthetic data. Committed `config.js` points to public production endpoints; never put service-role, database, or routing-provider secrets in browser assets.
 
-For future database changes, follow `RELEASE_CHECKLIST.md`: advance the repository database schema version for each migration, and increase the browser minimum required schema version only when the browser actually depends on that schema. The browser minimum must never exceed the deployed database version. If the contract cannot be verified, signed-in users see a safe retry screen instead of broken database errors.
+## Tests
 
-Changing the recording method affects new-trip fields, guidance, dashboard estimates, and report summaries. Existing trips retain the workflow under which they were recorded, so switching methods does not discard or silently relabel historical records.
+Run credential-free unit, contract, static, staging-build, and JavaScript syntax checks:
 
-ATO figures are estimates only. The app selects the published rate from each trip's income year, supports backdated trips from 2015–16 onward, and applies the 5,000 work-kilometre annual cap per vehicle and income year. It deliberately refuses to estimate an unpublished future year rather than carrying forward an outdated rate. Add each newly published ATO rate to the isolated `atoCentsRates` schedule in `logic.js`, with financial-year boundary tests, before enabling that year. Users remain responsible for eligibility and supporting records.
+```sh
+npm test
+```
 
-## Publish with GitHub Pages
+The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration:
 
-1. Push these files to the `main` branch on GitHub.
-2. Open the repository on GitHub, then choose **Settings** → **Pages**.
-3. Under **Build and deployment**, choose **Deploy from a branch**.
-4. Choose branch **main**, folder **/(root)**, then click **Save**.
-5. Wait a minute or two. GitHub will show the public website address at the top of the Pages settings page.
+```sh
+npm run test:integration
+```
+
+Follow [the integration guide](tests/integration/README.md). The repository does not currently define lint, type-check, or general browser/E2E commands.
+
+## Configuration, staging, and production
+
+- **Production:** public assets from `main` on GitHub Pages, production Supabase, and the production routing Worker.
+- **Staging/previews:** generated Cloudflare Pages builds with a separate Supabase project, Worker, accounts, and synthetic data.
+
+The staging build requires `TRAVEL_LOG_SUPABASE_URL`, `TRAVEL_LOG_SUPABASE_PUBLISHABLE_KEY`, and `TRAVEL_LOG_DISTANCE_API_URL`. It rejects production endpoints, privileged-looking keys, missing values, and non-HTTPS URLs. See [STAGING.md](STAGING.md) and [STAGING_SMOKE_TEST.md](STAGING_SMOKE_TEST.md).
+
+Database changes must be repository-owned and listed in `supabase/migrations.json`. Keep the repository database version distinct from the browser minimum, test staging first, and follow [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) before production migration.
+
+## Product and engineering documentation
+
+- [Product vision](docs/product/PRODUCT_VISION.md)
+- [Product roadmap](docs/product/PRODUCT_ROADMAP.md)
+- [Commercialisation roadmap](docs/product/COMMERCIALISATION_ROADMAP.md)
+- [Architecture](docs/engineering/ARCHITECTURE.md)
+- [Technical debt](docs/engineering/TECHNICAL_DEBT.md)
+- [Coding standards](docs/engineering/CODING_STANDARDS.md)
+- [Decision log](docs/decisions/DECISIONS.md)
+- [Codex operating instructions](CODEX_INSTRUCTIONS.md)
+
+Operational references include [security](SECURITY.md), [incident response](INCIDENT_RESPONSE.md), [staging](STAGING.md), [production reconciliation](PRODUCTION_SCHEMA_RECONCILIATION.md), and the [release checklist](RELEASE_CHECKLIST.md).
+
+## Contribution workflow
+
+Start from clean current `main`, read `CODEX_INSTRUCTIONS.md` and relevant documents, use a focused branch, inspect before editing, keep scope narrow, add proportional tests, and run applicable checks. Before committing, review staged content for secrets, personal data, generated artifacts, unrelated changes, and migration/version consistency. Use the repository PR template and do not treat approval as proof that deployment completed.
 
 ## Privacy and security
 
-Trip records are not saved to GitHub. See `privacy.html` for the user-facing notice and `SECURITY.md` for reporting and pilot safeguards.
+Trip and address data is sensitive and lives in Supabase, not GitHub. See [SECURITY.md](SECURITY.md) for reporting and pilot safeguards. Never commit real trip/location data, passwords, tokens, service-role keys, database dumps, or private backup locations.
