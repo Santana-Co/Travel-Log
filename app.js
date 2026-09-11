@@ -334,17 +334,59 @@ function configureTripMode(mode, trip) {
   $("#odometer-end-field").hidden = selected !== "ato_logbook";
   $("#round-trip-field").hidden = selected === "ato_logbook";
   $("#distance-field-label").textContent = selected === "ato_logbook" ? "Route estimate (km)" : "One-way distance (km)";
-  $("#route-tip").textContent = selected === "ato_logbook" ? "Calculate provides a route estimate for checking. Odometer readings determine the recorded distance." : "Calculate uses the shared route service to estimate the driving distance.";
+  $("#route-tip").textContent = selected === "ato_logbook" ? "Calculate a route estimate for checking, or enter it manually. Odometer readings determine the recorded distance." : "Enter the locations, then calculate the route—or type the one-way distance manually.";
+  $("#route-tip").classList.remove("error");
+  if (selected !== "general") $("#trip-more-details").open = true;
   updateTripModeTip();
+}
+
+function clearTripFormMessage() {
+  $("#trip-form-message").textContent = "";
+  $("#trip-form-message").classList.remove("error");
+  form.querySelectorAll('[aria-invalid="true"]').forEach((control) => control.removeAttribute("aria-invalid"));
+}
+
+function tripFieldForError(message) {
+  const mappings = [
+    [/journey end|end date/i, "#trip-end-date"],
+    [/trip date|date/i, "#trip-date"],
+    [/distance|odometer difference/i, "#distance"],
+    [/starting address/i, "#start-address"],
+    [/ending address/i, "#end-address"],
+    [/stop/i, ".stop-address"],
+    [/purpose/i, "#purpose"],
+    [/client|project/i, "#client-project"],
+    [/registration/i, "#vehicle-registration"],
+    [/vehicle/i, "#vehicle"],
+    [/rate/i, "#rate-cents"],
+    [/starting odometer/i, "#odometer-start"],
+    [/ending odometer/i, "#odometer-end"],
+    [/notes/i, "#notes"]
+  ];
+  const selector = mappings.find(([pattern]) => pattern.test(message))?.[1];
+  return selector ? form.querySelector(selector) : null;
+}
+
+function showTripFormError(message, control = tripFieldForError(message)) {
+  const feedback = $("#trip-form-message");
+  feedback.textContent = message;
+  feedback.classList.add("error");
+  if (control) {
+    if (control.closest("#trip-more-details")) $("#trip-more-details").open = true;
+    control.setAttribute("aria-invalid", "true");
+    control.focus();
+  } else feedback.focus();
 }
 
 function openForm(trip, duplicate = false) {
   form.reset();
+  clearTripFormMessage();
   const dates = tripCalendarDates(trip, duplicate);
   $("#form-title").textContent = duplicate ? "Duplicate trip" : (trip ? "Edit trip" : "Add a trip");
   $("#trip-id").value = duplicate ? "" : (trip?.id || "");
   $("#trip-date").value = dates.startDate;
   $("#trip-end-date").value = dates.endDate;
+  form.dataset.startDate = dates.startDate;
   $("#distance").value = trip?.distance || "";
   $("#purpose").value = trip?.purpose || "";
   $("#client-project").value = trip?.clientProject || "";
@@ -361,6 +403,10 @@ function openForm(trip, duplicate = false) {
   $("#round-trip").checked = trip?.roundTrip || false;
   $("#notes").value = trip?.notes || "";
   configureTripMode(trip ? recordingModeForTrip(trip) : activeRecordingMode(), trip);
+  $("#trip-more-details").open = Boolean(trip) || normalizeRecordingMode(form.dataset.recordingMode) !== "general";
+  const contextMessage = $("#trip-context-message");
+  contextMessage.hidden = !duplicate;
+  contextMessage.textContent = duplicate ? "Trip details have been copied. The new trip uses today's local date, and odometer readings have been left blank." : "";
   dialog.showModal();
 }
 
@@ -479,7 +525,7 @@ async function calculateDistance() {
   const end = $("#end-address").value.trim();
   const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
   const routeError = validateTrip({ date: "2000-01-01", distance: 1, start, stops, end, rateCents: 0, purpose: "", clientProject: "", vehicle: "", notes: "" });
-  if (routeError) { alert(routeError); return; }
+  if (routeError) { showTripFormError(routeError); return; }
   const button = $("#calculate-distance");
   setButtonBusy(button, true, "Calculating…");
   try {
@@ -489,16 +535,16 @@ async function calculateDistance() {
     const data = await response.json();
     if (!response.ok || typeof data.distanceKm !== "number") throw new Error(data.error || "Could not calculate this route.");
     $("#distance").value = data.distanceKm.toFixed(1);
+    $("#distance").removeAttribute("aria-invalid");
+    $("#route-tip").classList.remove("error");
     $("#route-tip").textContent = normalizeRecordingMode(form.dataset.recordingMode) === "ato_logbook"
       ? "Route estimate calculated. Enter the journey's odometer readings; they determine the recorded distance."
       : "Distance calculated using the shared route service. Review it before saving.";
   } catch (error) {
     const message = error.message || "Distance lookup failed. Check the addresses, then try again.";
-    if (message.includes("enter the distance manually")) {
-      $("#route-tip").textContent = "Could not create a driving route. Enter the one-way distance manually, then save the trip.";
-      $("#distance").focus();
-    }
-    alert(message);
+    $("#route-tip").textContent = `Route could not be calculated. Check the locations or enter the one-way distance manually. ${message}`;
+    $("#route-tip").classList.add("error");
+    $("#distance").focus();
   }
   finally { setButtonBusy(button, false); }
 }
@@ -776,10 +822,19 @@ $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
 $("#add-stop-button").addEventListener("click", () => addStop());
-$("#trip-date").addEventListener("change", updateTripModeTip);
+$("#trip-date").addEventListener("change", (event) => {
+  if ($("#trip-end-date").value === form.dataset.startDate) $("#trip-end-date").value = event.currentTarget.value;
+  form.dataset.startDate = event.currentTarget.value;
+  updateTripModeTip();
+});
+form.addEventListener("input", (event) => {
+  event.target.removeAttribute?.("aria-invalid");
+  if ($("#trip-form-message").textContent) clearTripFormMessage();
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  clearTripFormMessage();
   const saveButton = form.querySelector('button[type="submit"]');
   const id = $("#trip-id").value || crypto.randomUUID();
   const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
@@ -788,13 +843,13 @@ form.addEventListener("submit", async (event) => {
   const claimMethod = recordingMode === "general" ? (employerRate > 0 ? "employer" : "record_only") : recordingMode;
   const trip = { id, date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
   const validationError = validateTrip(trip);
-  if (validationError) return alert(validationError);
-  if (claimMethod === "ato_logbook" && !logbookPeriods.some((period) => period.vehicleRegistration.toUpperCase() === trip.vehicleRegistration.toUpperCase() && trip.date >= period.startDate && trip.endDate <= period.endDate)) return alert("Create a matching 12-week logbook period for this registration and journey dates in Account and privacy before saving an ATO logbook trip.");
+  if (validationError) return showTripFormError(validationError);
+  if (claimMethod === "ato_logbook" && !logbookPeriods.some((period) => period.vehicleRegistration.toUpperCase() === trip.vehicleRegistration.toUpperCase() && trip.date >= period.startDate && trip.endDate <= period.endDate)) return showTripFormError("Create a matching 12-week logbook period for this registration and journey dates in Account and privacy before saving an ATO logbook trip.", $("#vehicle-registration"));
   setButtonBusy(saveButton, true, "Saving…");
   const query = $("#trip-id").value ? db.from("trips").update(toDatabase(trip)).eq("id", id) : db.from("trips").insert(toDatabase(trip));
   const { error } = await query;
   setButtonBusy(saveButton, false);
-  if (error) return alert(`Trip could not be saved: ${error.message}`);
+  if (error) return showTripFormError(`Trip could not be saved: ${error.message}`);
   dialog.close();
   await loadTrips();
 });

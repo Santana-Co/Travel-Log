@@ -30,8 +30,28 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(page.locator("#trip-list")).toContainText("Synthetic Depot");
 
   await page.getByRole("button", { name: "+ Add trip" }).click();
+  await expect(page.getByRole("heading", { name: "Trip essentials" })).toBeVisible();
+  await expect(page.locator("#start-address")).toBeVisible();
+  await expect(page.locator("#end-address")).toBeVisible();
+  await expect(page.locator("#distance")).toBeVisible();
+  await expect(page.locator("#trip-more-details")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#purpose")).not.toBeVisible();
   await expect(page.locator("#trip-date")).toHaveValue(localDate);
   await expect(page.locator("#trip-end-date")).toHaveValue(localDate);
+  await page.locator("#start-address").fill("Preserved synthetic start");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.locator("#trip-form-message")).toContainText("Distance must be greater than 0");
+  await expect(page.locator("#start-address")).toHaveValue("Preserved synthetic start");
+  await expect(page.locator("#distance")).toBeFocused();
+
+  await page.locator("#end-address").fill("Synthetic Brisbane End");
+  await page.getByRole("button", { name: "Calculate route" }).click();
+  await expect(page.locator("#route-tip")).toContainText("enter the one-way distance manually");
+  await expect(page.locator("#start-address")).toHaveValue("Preserved synthetic start");
+  await expect(page.locator("#end-address")).toHaveValue("Synthetic Brisbane End");
+
+  await page.locator("#trip-more-details summary").click();
+  await expect(page.locator("#purpose")).toBeVisible();
   await page.locator("#trip-date").fill(storedStartDate);
   await page.locator("#trip-end-date").fill(storedEndDate);
   await page.locator("#distance").fill("24.5");
@@ -58,6 +78,9 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(updatedTrip).toHaveCount(1);
 
   await updatedTrip.getByRole("button", { name: "Duplicate" }).click();
+  await expect(page.locator("#trip-more-details")).toHaveAttribute("open", "");
+  await expect(page.locator("#trip-context-message")).toContainText("today's local date");
+  await expect(page.locator("#trip-context-message")).toContainText("odometer readings have been left blank");
   await expect(page.locator("#trip-date")).toHaveValue(localDate);
   await expect(page.locator("#trip-end-date")).toHaveValue(localDate);
   await expect(page.locator("#client-project")).toHaveValue("Synthetic client updated");
@@ -74,6 +97,36 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(page.locator("#trip-list")).not.toContainText("Synthetic client updated");
   await expect(page.locator("#trip-list")).toContainText("Fixture baseline");
   expect(browserErrors).toEqual([]);
+  expect(page.externalRequests).toEqual([]);
+});
+
+test("first-trip essentials remain usable at a representative mobile width", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "+ Add trip" }).click();
+  await expect(page.locator("#trip-dialog")).toBeVisible();
+  await expect(page.locator("#trip-date")).toHaveValue(localDate);
+  await expect(page.locator("#start-address")).toBeVisible();
+  await expect(page.locator("#end-address")).toBeVisible();
+  await expect(page.locator("#distance")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Calculate route" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save trip" })).toBeVisible();
+  await expect(page.locator("#purpose")).not.toBeVisible();
+  const saveButtonBounds = await page.getByRole("button", { name: "Save trip" }).boundingBox();
+  expect(saveButtonBounds.y + saveButtonBounds.height).toBeLessThanOrEqual(844);
+  const layout = await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth }));
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(page.externalRequests).toEqual([]);
+});
+
+test("mode-specific required fields are revealed for an ATO logbook trip", async ({ page }) => {
+  await page.goto("/?mode=ato_logbook");
+  await page.getByRole("button", { name: "+ Add trip" }).click();
+  await expect(page.locator("#trip-more-details")).toHaveAttribute("open", "");
+  await expect(page.locator("#purpose")).toBeVisible();
+  await expect(page.locator("#vehicle-registration")).toBeVisible();
+  await expect(page.locator("#odometer-start")).toBeVisible();
+  await expect(page.locator("#odometer-end")).toBeVisible();
   expect(page.externalRequests).toEqual([]);
 });
 

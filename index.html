@@ -83,33 +83,43 @@
     </main>
 
     <dialog id="trip-dialog">
-      <form id="trip-form" method="dialog">
+      <form id="trip-form" method="dialog" novalidate>
         <div class="dialog-heading">
           <div><p class="eyebrow">TRIP DETAILS</p><h2 id="form-title">Add a trip</h2></div>
           <button type="button" id="close-button" class="icon-button" aria-label="Close">×</button>
         </div>
         <input id="trip-id" type="hidden" />
-        <div class="form-grid">
-          <label>Journey starts<input id="trip-date" type="date" required /></label>
-          <label>Journey ends<input id="trip-end-date" type="date" required /></label>
-          <label id="distance-field"><span id="distance-field-label">One-way distance (km)</span><span class="distance-input"><input id="distance" type="number" min="0.1" max="100000" step="0.1" placeholder="e.g. 24.5" required /><button type="button" id="calculate-distance" class="button secondary">Calculate</button></span></label>
-          <label>Trip purpose<select id="purpose"><option value="">Select a purpose</option><option>Client visit</option><option>Site visit</option><option>Delivery</option><option>Training</option><option>Meeting</option><option>Other</option></select></label>
-          <label>Client or project<input id="client-project" type="text" maxlength="120" placeholder="e.g. Redlands project" /></label>
-          <label>Vehicle make and model (optional)<input id="vehicle" type="text" maxlength="120" placeholder="e.g. Toyota Hilux" /></label>
-          <label>Registration number<input id="vehicle-registration" type="text" list="vehicle-registrations" maxlength="20" autocapitalize="characters" placeholder="e.g. 123ABC" /></label>
-          <input id="claim-method" type="hidden" value="record_only" />
-          <label id="rate-field">Employer rate (cents/km)<input id="rate-cents" type="number" min="0" max="1000" step="0.1" placeholder="e.g. 91" /></label>
-          <label id="odometer-start-field">Starting odometer (km)<input id="odometer-start" type="number" min="0" max="999999999" step="0.1" /></label>
-          <label id="odometer-end-field">Ending odometer (km)<input id="odometer-end" type="number" min="0" max="999999999" step="0.1" /></label>
-          <label class="full-width">Starting address<input id="start-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
-          <div class="full-width stops-field"><div class="stops-heading"><span>Stops on the way (optional)</span><button type="button" id="add-stop-button" class="text-button">+ Add stop</button></div><div id="stops-list" class="stops-list"></div></div>
-          <label class="full-width">Ending address<input id="end-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. Client office, Gold Coast" required /></label>
-          <label id="round-trip-field" class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
-          <label class="full-width">Notes (optional)<textarea id="notes" rows="3" maxlength="2000" placeholder="Client meeting, site visit, project name…"></textarea></label>
-        </div>
-        <p id="claim-tip" class="route-tip">Add an employer rate to calculate a reimbursement, or leave it blank to keep a general travel record.</p>
-        <p id="route-tip" class="route-tip">Calculate uses the shared route service to estimate the driving distance. Odometer readings take priority in reports.</p>
-        <div class="dialog-actions"><button type="button" id="cancel-button" class="button secondary">Cancel</button><button class="button primary" type="submit">Save trip</button></div>
+        <p id="trip-context-message" class="trip-context-message" role="status" hidden></p>
+        <section class="trip-form-section" aria-labelledby="essential-trip-heading">
+          <h3 id="essential-trip-heading">Trip essentials</h3>
+          <div class="form-grid essential-trip-fields">
+            <label>Trip date<input id="trip-date" type="date" required /></label>
+            <label class="full-width">Starting location<input id="start-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
+            <label class="full-width">Destination<input id="end-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. Client office, Gold Coast" required /></label>
+            <label id="distance-field" class="full-width"><span id="distance-field-label">One-way distance (km)</span><span class="distance-input"><input id="distance" type="number" min="0.1" max="100000" step="0.1" placeholder="Enter manually or calculate" required /><button type="button" id="calculate-distance" class="button secondary">Calculate route</button></span></label>
+          </div>
+          <p id="route-tip" class="route-tip" role="status">Enter the start and destination, then calculate the route—or type the one-way distance manually.</p>
+        </section>
+        <details id="trip-more-details" class="trip-more-details">
+          <summary>More details <span>Stops, purpose, vehicle, reimbursement and notes</span></summary>
+          <div class="form-grid optional-trip-fields">
+            <label>Journey ends<input id="trip-end-date" type="date" required /></label>
+            <label>Trip purpose<select id="purpose"><option value="">Select a purpose</option><option>Client visit</option><option>Site visit</option><option>Delivery</option><option>Training</option><option>Meeting</option><option>Other</option></select></label>
+            <label>Client or project<input id="client-project" type="text" maxlength="120" placeholder="e.g. Redlands project" /></label>
+            <label>Vehicle make and model (optional)<input id="vehicle" type="text" maxlength="120" placeholder="e.g. Toyota Hilux" /></label>
+            <label>Registration number<input id="vehicle-registration" type="text" list="vehicle-registrations" maxlength="20" autocapitalize="characters" placeholder="e.g. 123ABC" /></label>
+            <input id="claim-method" type="hidden" value="record_only" />
+            <label id="rate-field">Employer rate (cents/km)<input id="rate-cents" type="number" min="0" max="1000" step="0.1" placeholder="e.g. 91" /></label>
+            <label id="odometer-start-field">Starting odometer (km)<input id="odometer-start" type="number" min="0" max="999999999" step="0.1" /></label>
+            <label id="odometer-end-field">Ending odometer (km)<input id="odometer-end" type="number" min="0" max="999999999" step="0.1" /></label>
+            <div class="full-width stops-field"><div class="stops-heading"><span>Stops on the way (optional)</span><button type="button" id="add-stop-button" class="text-button">+ Add stop</button></div><div id="stops-list" class="stops-list"></div></div>
+            <label id="round-trip-field" class="checkbox full-width"><input id="round-trip" type="checkbox" /> This was a round trip <span>(the total distance will be doubled)</span></label>
+            <label class="full-width">Notes (optional)<textarea id="notes" rows="3" maxlength="2000" placeholder="Client meeting, site visit, project name…"></textarea></label>
+          </div>
+          <p id="claim-tip" class="route-tip">Add an employer rate to calculate a reimbursement, or leave it blank to keep a general travel record.</p>
+        </details>
+        <p id="trip-form-message" class="trip-form-message" role="alert" tabindex="-1"></p>
+        <div class="dialog-actions trip-dialog-actions"><button type="button" id="cancel-button" class="button secondary">Cancel</button><button class="button primary" type="submit">Save trip</button></div>
       </form>
     </dialog>
 
