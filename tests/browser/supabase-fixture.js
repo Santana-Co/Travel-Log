@@ -10,7 +10,7 @@
     privacy_version: "2026-08-20-ato-logbook",
     privacy_accepted_at: "2026-01-01T00:00:00.000Z",
     appearance_theme: "system",
-    recording_mode: "general",
+    recording_mode: new URLSearchParams(location.search).get("mode") || "general",
   };
   const state = {
     schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 3),
