@@ -30,7 +30,7 @@ report.html, report.js, report.css          Printable report
 config.js                                   Public production browser configuration
 supabase/                                   Bootstrap schema and ordered migrations
 scripts/                                    Isolated staging build
-tests/                                      Unit, contract, build, and live integration tests
+tests/                                      Unit, contract, browser, build, and live integration tests
 docs/product/                               Product and commercial direction
 docs/engineering/                           Architecture, standards, and technical debt
 docs/decisions/                             Durable decisions
@@ -39,7 +39,7 @@ CODEX_INSTRUCTIONS.md                       Codex operating rules
 
 ## Local setup
 
-Prerequisites are Node.js 24 and a local static HTTP server. There are no npm runtime dependencies; the browser loads a pinned Supabase client from jsDelivr.
+Prerequisites are Node.js 24 and a local static HTTP server. Install development dependencies with `npm ci`. There are no npm runtime dependencies; the browser loads a pinned Supabase client from jsDelivr.
 
 From the repository root, for example:
 
@@ -59,13 +59,21 @@ Run credential-free unit, contract, static, staging-build, and JavaScript syntax
 npm test
 ```
 
+Run the isolated Chromium critical-flow tests (after `npx playwright install chromium` on a new machine):
+
+```sh
+npm run test:browser
+```
+
+These tests load the real application assets with deterministic synthetic Auth, schema, profile, and trip responses. They block non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
+
 The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration:
 
 ```sh
 npm run test:integration
 ```
 
-Follow [the integration guide](tests/integration/README.md). The repository does not currently define lint, type-check, or general browser/E2E commands.
+Follow [the integration guide](tests/integration/README.md). The repository does not currently define lint or type-check commands.
 
 ## Configuration, staging, and production
 
