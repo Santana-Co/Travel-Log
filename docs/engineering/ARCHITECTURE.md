@@ -29,7 +29,7 @@ flowchart LR
 - `config.js`: public production browser endpoints and publishable Supabase key; it must never contain privileged secrets.
 - `supabase/`: bootstrap schema and ordered repository-owned migrations.
 - `scripts/build-staging.cjs`: isolated staging build and production-endpoint guardrails.
-- `tests/`: credential-free Node tests plus an explicitly configured live Supabase integration suite.
+- `tests/`: credential-free Node tests, an isolated Playwright browser baseline, and an explicitly configured live Supabase integration suite.
 - `.github/`: App checks, CodeQL, Dependabot, and the PR checklist.
 
 ## Browser responsibilities
@@ -155,7 +155,7 @@ A private logical production backup was checksum-verified and restored to dispos
 
 ## CI, dependencies, and trust boundaries
 
-- GitHub Actions runs `npm test` with Node 24 for PRs and `main`.
+- GitHub Actions runs `npm test` and the isolated Chromium critical-flow baseline with Node 24 for PRs and `main`.
 - CodeQL scans JavaScript on PRs, `main`, and weekly; Dependabot checks npm and Actions weekly.
 - The browser loads pinned `@supabase/supabase-js` 2.112.3 from jsDelivr with SRI.
 - External services are Supabase, GitHub Pages/Actions, Cloudflare Pages/Worker, the routing provider, Google Maps, and jsDelivr.
@@ -163,7 +163,7 @@ A private logical production backup was checksum-verified and restored to dispos
 - Browser input is untrusted. Supabase RLS/constraints are the data security boundary.
 - Route addresses cross the Worker/provider boundary; report payloads briefly enter `sessionStorage`; exports leave application control.
 
-There is no lint/type-check command, automated general-purpose browser/E2E suite, production error monitor, or automated application/routing/schema health check in current `main`.
+The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration boundaries, and blocks non-loopback requests. It covers authenticated startup, schema compatibility, trip CRUD/duplication, and Brisbane-local date behaviour. Broader auth, reporting, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
 
 ## Calendar dates and timestamps
 
