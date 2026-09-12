@@ -49,7 +49,7 @@ Exit: versioned and sourced rules, stable historical calculations, and clear exp
 
 Improve information architecture, entry speed, onboarding, responsive behaviour, accessibility, keyboard use, error recovery, confirmations/undo, visual consistency, and performance. A new user should create a correct first trip and understand totals without documentation.
 
-In progress: the first-trip form now prioritises date, start, destination, distance, and save; progressively reveals optional detail; and provides inline validation recovery. Broader onboarding, accessibility, reporting, and polish work remains.
+In progress: the first-trip form prioritises date, start, destination, distance, and save; progressively reveals optional detail; and provides inline validation recovery. Recorded-trip cards now prioritise journey direction, date, total distance, and round-trip state, with grouped supporting details on demand. Persisted distance provenance, broader onboarding, accessibility, reporting, and polish work remain.
 
 ## Stage 5 — Refine the SaaS foundation
 
