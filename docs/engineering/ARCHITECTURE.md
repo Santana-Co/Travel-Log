@@ -96,6 +96,8 @@ The live staging integration suite uses two synthetic authenticated users and co
 6. PostgREST performs insert/update/delete; RLS and constraints enforce server-side ownership and integrity.
 7. The browser reloads and renders the user's records. Deletes require confirmation.
 
+Trip cards prioritise the date, total distance, journey direction, and round-trip state. A native details disclosure groups existing journey, work, vehicle, and additional record fields while omitting empty optional groups. Odometer-backed distance is identifiable from stored readings. For other trips, the current schema stores the distance but not whether it was entered manually or produced by the route service, so the UI reports that provenance as not recorded.
+
 Edits overwrite the row. There is no trip-change or manual-distance audit history.
 
 ## Distance and address flows
