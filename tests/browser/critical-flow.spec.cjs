@@ -28,6 +28,22 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(page.locator("#compatibility-dialog")).not.toBeVisible();
   await expect(page.locator("#account-name")).toHaveText("Browser Test User");
   await expect(page.locator("#trip-list")).toContainText("Synthetic Depot");
+  const baselineTrip = page.locator("article.trip", { hasText: "Fixture baseline" });
+  await expect(baselineTrip.locator(".route")).toContainText("From");
+  await expect(baselineTrip.locator(".route")).toContainText("Synthetic Depot");
+  await expect(baselineTrip.locator(".route")).toContainText("Destination");
+  await expect(baselineTrip.locator(".route")).toContainText("Synthetic Office");
+  await expect(baselineTrip.locator(".route")).toContainText("via 1 stop");
+  await expect(baselineTrip.locator(".trip-distance")).toContainText("25 km");
+  await expect(baselineTrip.locator(".trip-distance")).toContainText("Round trip");
+  await expect(baselineTrip.locator(".trip-evidence")).toContainText("purpose, client/project, vehicle, notes");
+  await expect(baselineTrip).not.toContainText("Notes: —");
+  await baselineTrip.locator(".trip-record-details summary").click();
+  await expect(baselineTrip.getByRole("heading", { name: "Journey" })).toBeVisible();
+  await expect(baselineTrip.getByText("Synthetic Stop", { exact: true })).toBeVisible();
+  await expect(baselineTrip.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(baselineTrip.getByRole("heading", { name: "Work details" })).toBeVisible();
+  await expect(baselineTrip.getByRole("heading", { name: "Vehicle" })).toBeVisible();
 
   await page.getByRole("button", { name: "+ Add trip" }).click();
   await expect(page.getByRole("heading", { name: "Trip essentials" })).toBeVisible();
@@ -55,6 +71,7 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await page.locator("#trip-date").fill(storedStartDate);
   await page.locator("#trip-end-date").fill(storedEndDate);
   await page.locator("#distance").fill("24.5");
+  await expect(page.locator("#route-tip")).toContainText("Manual distance entered");
   await page.locator("#purpose").selectOption({ label: "Client visit" });
   await page.locator("#client-project").fill("Synthetic client alpha");
   await page.locator("#start-address").fill("Synthetic Brisbane Start");
@@ -116,6 +133,17 @@ test("first-trip essentials remain usable at a representative mobile width", asy
   expect(saveButtonBounds.y + saveButtonBounds.height).toBeLessThanOrEqual(844);
   const layout = await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth }));
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth);
+  await page.getByRole("button", { name: "Cancel" }).click();
+  const card = page.locator("article.trip", { hasText: "Fixture baseline" });
+  await expect(card).toBeVisible();
+  const cardLayout = await card.evaluate((element) => ({ right: element.getBoundingClientRect().right, viewportWidth: innerWidth }));
+  expect(cardLayout.right).toBeLessThanOrEqual(cardLayout.viewportWidth);
+  const actions = card.locator(".trip-actions .text-button");
+  await expect(actions).toHaveCount(4);
+  for (let index = 0; index < 4; index += 1) {
+    const bounds = await actions.nth(index).boundingBox();
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+  }
   expect(page.externalRequests).toEqual([]);
 });
 

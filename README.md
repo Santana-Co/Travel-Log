@@ -13,7 +13,7 @@ Live staging tests have verified two-user tenant isolation across the five priva
 ## Features
 
 - Email/password accounts, private cloud records, privacy acceptance, data export, and reauthenticated account deletion
-- Streamlined trip creation with essential fields first, progressively revealed details, inline recovery, editing, duplication, deletion, multiple ordered stops, round trips, search, and filters
+- Streamlined trip creation plus readable journey summaries, progressively revealed record details, inline recovery, editing, duplication, deletion, multiple ordered stops, round trips, search, and filters
 - Protected driving-distance calculation plus manual distance entry and Google Maps route links
 - Saved locations and per-trip vehicle/registration details
 - Employer/general, ATO cents-per-kilometre, and representative-logbook/odometer recording modes

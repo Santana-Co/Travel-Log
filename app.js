@@ -124,13 +124,30 @@ function render() {
     const stops = trip.stops || [];
     const waypoints = stops.length ? `&waypoints=${encodeURIComponent(stops.join("|"))}` : "";
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}${waypoints}&travelmode=driving`;
-    const workDetails = [trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration].filter(Boolean).map(escapeHtml).join(" · ");
     const displayedMethod = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
     const displayedClaim = claimAmount(trip, recordingMode);
     const methodLabel = { record_only: "record only", employer: "employer reimbursement", ato_cents: `ATO ${atoIncomeYear(trip.date)} cents/km`, ato_logbook: "ATO logbook" }[displayedMethod] || "record only";
-    const odometer = trip.odometerStart !== "" && trip.odometerEnd !== "" ? ` · odometer ${escapeHtml(trip.odometerStart)}–${escapeHtml(trip.odometerEnd)}` : "";
+    const hasOdometer = trip.odometerStart !== "" && trip.odometerEnd !== "";
     const dates = trip.endDate && trip.endDate !== trip.date ? `${displayDate(trip.date)} – ${displayDate(trip.endDate)}` : displayDate(trip.date);
-    return `<article class="trip"><div class="trip-date">${dates}</div><div><div class="route">${escapeHtml(trip.start)} <span>${stops.length ? `via ${stops.length} stop${stops.length === 1 ? "" : "s"} to ` : "to "}${escapeHtml(trip.end)}</span></div>${workDetails ? `<p class="trip-details">${workDetails}</p>` : ""}<p class="trip-details">${formatKm(totalDistance(trip))}${odometer} · ${methodLabel}${displayedClaim ? ` · ${formatMoney(displayedClaim)} estimate` : ""}${trip.notes ? ` · ${escapeHtml(trip.notes)}` : ""}</p></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Route</a><button class="text-button" data-duplicate="${trip.id}">Duplicate</button><button class="text-button" data-edit="${trip.id}">Edit</button><button class="text-button" data-delete="${trip.id}">Delete</button></div></article>`;
+    const evidenceItems = [[trip.purpose, "purpose"], [trip.clientProject, "client/project"], [trip.vehicle || trip.vehicleRegistration, "vehicle"], [hasOdometer, "odometer readings"], [trip.notes, "notes"]].filter(([value]) => value).map(([, label]) => label);
+    const evidenceSummary = evidenceItems.length ? `Recorded details: ${evidenceItems.join(", ")}.` : "No optional supporting details recorded.";
+    const journeyRows = [
+      ["Date", dates],
+      ["From", trip.start],
+      stops.length && [stops.length === 1 ? "Stop" : "Stops", stops.join(" → ")],
+      ["Destination", trip.end],
+      [hasOdometer ? "Route estimate" : "One-way distance", formatKm(trip.distance)],
+      ["Recorded total", formatKm(totalDistance(trip))],
+      ["Journey type", trip.roundTrip ? "Round trip" : "One way"],
+      ["Distance source", hasOdometer ? "Odometer readings" : "Not recorded"]
+    ].filter(Boolean);
+    const workRows = [["Purpose", trip.purpose], ["Client or project", trip.clientProject]].filter(([, value]) => value);
+    const vehicleRows = [["Vehicle", trip.vehicle], ["Registration", trip.vehicleRegistration], hasOdometer && ["Odometer", `${trip.odometerStart}–${trip.odometerEnd} km`]].filter(Boolean).filter(([, value]) => value);
+    const additionalRows = [["Recording method", methodLabel], trip.rateCents > 0 && ["Employer rate", `${trip.rateCents}¢/km`], displayedClaim > 0 && ["Estimate", formatMoney(displayedClaim)], ["Notes", trip.notes]].filter(Boolean).filter(([, value]) => value);
+    const rows = (items) => items.map(([term, value]) => `<div><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+    const detailGroup = (title, items) => items.length ? `<section><h4>${title}</h4><dl>${rows(items)}</dl></section>` : "";
+    const tripLabel = `${trip.start} to ${trip.end}`;
+    return `<article class="trip"><h3 class="sr-only">Trip from ${escapeHtml(trip.start)} to ${escapeHtml(trip.end)}</h3><div class="trip-overview"><div class="trip-date">${dates}</div><div class="trip-distance"><strong>${formatKm(totalDistance(trip))}</strong><span>${trip.roundTrip ? "Round trip" : "One way"}</span></div></div><div class="trip-main"><div class="route" aria-label="Journey from ${escapeAttribute(trip.start)} to ${escapeAttribute(trip.end)}"><span class="route-label">From</span><strong>${escapeHtml(trip.start)}</strong>${stops.length ? `<span class="route-stops">via ${stops.length} stop${stops.length === 1 ? "" : "s"}</span>` : ""}<span class="route-arrow" aria-hidden="true">↓</span><span class="route-label">Destination</span><strong>${escapeHtml(trip.end)}</strong></div><p class="trip-method">${escapeHtml(methodLabel)}${displayedClaim ? ` · ${escapeHtml(formatMoney(displayedClaim))} estimate` : ""}</p><p class="trip-evidence">${escapeHtml(evidenceSummary)}</p><details class="trip-record-details"><summary>View trip details</summary><div class="trip-detail-groups">${detailGroup("Journey", journeyRows)}${detailGroup("Work details", workRows)}${detailGroup("Vehicle", vehicleRows)}${detailGroup("Additional information", additionalRows)}</div></details></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open route for ${escapeAttribute(tripLabel)}">Route</a><button class="text-button" data-duplicate="${trip.id}" aria-label="Duplicate trip ${escapeAttribute(tripLabel)}">Duplicate</button><button class="text-button" data-edit="${trip.id}" aria-label="Edit trip ${escapeAttribute(tripLabel)}">Edit</button><button class="text-button" data-delete="${trip.id}" aria-label="Delete trip ${escapeAttribute(tripLabel)}">Delete</button></div></article>`;
   }).join("") || (trips.length ? `<div class="empty-state"><h3>No matching trips</h3><p>Clear or change the filters to see more records.</p></div>` : "");
 }
 
@@ -403,6 +420,7 @@ function openForm(trip, duplicate = false) {
   $("#round-trip").checked = trip?.roundTrip || false;
   $("#notes").value = trip?.notes || "";
   configureTripMode(trip ? recordingModeForTrip(trip) : activeRecordingMode(), trip);
+  if (trip && normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook") $("#route-tip").textContent = "This trip's distance source was not stored. Review the recorded value or calculate the route again before saving.";
   $("#trip-more-details").open = Boolean(trip) || normalizeRecordingMode(form.dataset.recordingMode) !== "general";
   const contextMessage = $("#trip-context-message");
   contextMessage.hidden = !duplicate;
@@ -822,6 +840,10 @@ $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
 $("#add-stop-button").addEventListener("click", () => addStop());
+$("#distance").addEventListener("input", () => {
+  $("#route-tip").classList.remove("error");
+  $("#route-tip").textContent = "Manual distance entered. Review the one-way kilometres before saving.";
+});
 $("#trip-date").addEventListener("change", (event) => {
   if ($("#trip-end-date").value === form.dataset.startDate) $("#trip-end-date").value = event.currentTarget.value;
   form.dataset.startDate = event.currentTarget.value;
