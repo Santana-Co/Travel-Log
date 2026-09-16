@@ -88,10 +88,10 @@ The live staging integration suite uses two synthetic authenticated users and co
 
 ## Trip lifecycle
 
-1. `openForm()` prepares a new, duplicate, or existing trip.
+1. `openForm()` prepares a new, duplicate, or existing trip. New general trips initially show the essential date, route, and distance path; optional evidence/reporting fields are progressively disclosed. Existing, duplicated, and mode-specific trips reveal their relevant detail fields immediately.
 2. New and duplicate dates use device-local `tripCalendarDates()` defaults; edit retains stored dates.
 3. The user supplies ordered addresses/stops, purpose, distance or odometers, and optional reporting fields.
-4. `validateTrip()` checks domain rules without converting calendar dates through UTC ISO strings.
+4. `validateTrip()` checks domain rules without converting calendar dates through UTC ISO strings. Trip-form failures are shown inline and focus the first invalid field without discarding entered values.
 5. `toDatabase()` maps to database columns and includes the signed-in user ID.
 6. PostgREST performs insert/update/delete; RLS and constraints enforce server-side ownership and integrity.
 7. The browser reloads and renders the user's records. Deletes require confirmation.
@@ -163,7 +163,7 @@ A private logical production backup was checksum-verified and restored to dispos
 - Browser input is untrusted. Supabase RLS/constraints are the data security boundary.
 - Route addresses cross the Worker/provider boundary; report payloads briefly enter `sessionStorage`; exports leave application control.
 
-The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration boundaries, and blocks non-loopback requests. It covers authenticated startup, schema compatibility, trip CRUD/duplication, and Brisbane-local date behaviour. Broader auth, reporting, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
+The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration boundaries, and blocks non-loopback requests. It covers authenticated startup, schema compatibility, the essential-first trip flow and validation recovery at desktop/mobile widths, trip CRUD/duplication, and Brisbane-local date behaviour. Broader auth, reporting, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
 
 ## Calendar dates and timestamps
 

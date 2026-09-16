@@ -13,7 +13,7 @@ Live staging tests have verified two-user tenant isolation across the five priva
 ## Features
 
 - Email/password accounts, private cloud records, privacy acceptance, data export, and reauthenticated account deletion
-- Trip creation, editing, duplication, deletion, multiple ordered stops, round trips, search, and filters
+- Streamlined trip creation with essential fields first, progressively revealed details, inline recovery, editing, duplication, deletion, multiple ordered stops, round trips, search, and filters
 - Protected driving-distance calculation plus manual distance entry and Google Maps route links
 - Saved locations and per-trip vehicle/registration details
 - Employer/general, ATO cents-per-kilometre, and representative-logbook/odometer recording modes
@@ -65,7 +65,7 @@ Run the isolated Chromium critical-flow tests (after `npx playwright install chr
 npm run test:browser
 ```
 
-These tests load the real application assets with deterministic synthetic Auth, schema, profile, and trip responses. They block non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
+These tests load the real application assets with deterministic synthetic Auth, schema, profile, and trip responses. They cover the essential-first trip form at desktop and mobile widths, validation recovery, CRUD/duplication, local dates, and schema compatibility. They block non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
 
 The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration:
 

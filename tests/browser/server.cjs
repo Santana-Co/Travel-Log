@@ -11,7 +11,12 @@ const server = http.createServer(async (request, response) => {
   try {
     if (pathname === "/config.js") {
       response.writeHead(200, { "content-type": "text/javascript" });
-      response.end('window.TravelLogConfig = { environment: "test", buildLabel: "Browser test", supabaseUrl: "https://synthetic.invalid", supabasePublishableKey: "synthetic-publishable-key", distanceApiUrl: "https://routing.invalid" };');
+      response.end(`window.TravelLogConfig = { environment: "test", buildLabel: "Browser test", supabaseUrl: "https://synthetic.invalid", supabasePublishableKey: "synthetic-publishable-key", distanceApiUrl: "http://127.0.0.1:${port}/route" };`);
+      return;
+    }
+    if (pathname === "/route") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "Synthetic route unavailable; enter the distance manually." }));
       return;
     }
 

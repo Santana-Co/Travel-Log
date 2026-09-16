@@ -6,7 +6,7 @@
 
 The product sequence is **Build → Refine → Validate → Commercialise → Scale → Mobile → Expand**. Capabilities from several later stages already exist, but stage progress is determined by exit criteria rather than feature count.
 
-Stage 0 documentation, live tenant-isolation testing, schema drift reconciliation, account-deletion correction, schema-version alignment, local-date handling, and a partial recovery baseline are complete. Stage 0 remains partially met because configured local operation depends on external services, lint/type checking and browser/E2E coverage are limited, and broad refactoring is not yet protected by sufficient workflow tests.
+Stage 0 is complete: repository-owned documentation, tenant-isolation testing, schema reconciliation, account-deletion correction, schema-version alignment, local-date handling, recovery baselining, and an isolated browser critical-flow test are in place. The product is now in **Refine**; remaining foundation limitations stay tracked as technical debt rather than reopening Stage 0.
 
 ## Stage 0 — Repository baseline and architecture
 
@@ -19,7 +19,7 @@ Exit criteria:
 - Local startup and build/test commands are reproducible to the extent credentials and external services allow.
 - Automated coverage is sufficient for safe structural change.
 
-**Assessment:** partially met. See [technical debt](../engineering/TECHNICAL_DEBT.md).
+**Assessment:** complete. See [technical debt](../engineering/TECHNICAL_DEBT.md) for residual risks that continue into Refine.
 
 ## Stage 1 — Build: dependable core web workflow
 
@@ -48,6 +48,8 @@ Exit: versioned and sourced rules, stable historical calculations, and clear exp
 ## Stage 4 — Refine the web experience
 
 Improve information architecture, entry speed, onboarding, responsive behaviour, accessibility, keyboard use, error recovery, confirmations/undo, visual consistency, and performance. A new user should create a correct first trip and understand totals without documentation.
+
+In progress: the first-trip form now prioritises date, start, destination, distance, and save; progressively reveals optional detail; and provides inline validation recovery. Broader onboarding, accessibility, reporting, and polish work remains.
 
 ## Stage 5 — Refine the SaaS foundation
 
