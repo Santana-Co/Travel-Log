@@ -41,6 +41,8 @@
     return Number.isFinite(start) && Number.isFinite(end) && end > start ? end - start : 0;
   }
   function totalDistance(trip) { return odometerDistance(trip) || number(trip.distance) * (trip.roundTrip ? 2 : 1); }
+  function normalizeTripClassification(value) { return ["work", "personal", "unclassified"].includes(value) ? value : "unclassified"; }
+  function isWorkTrip(trip) { return normalizeTripClassification(trip?.classification) === "work"; }
   function normalizeRecordingMode(mode) { return ["general", "ato_cents", "ato_logbook"].includes(mode) ? mode : "general"; }
   function recordingModeForTrip(trip) {
     if (trip?.claimMethod === "ato_cents") return "ato_cents";
@@ -74,6 +76,7 @@
     return trip.claimMethod || (number(trip.rateCents) > 0 ? "employer" : "record_only");
   }
   function claimAmount(trip, recordingMode) {
+    if (!isWorkTrip(trip)) return 0;
     const method = claimMethodForMode(trip, recordingMode);
     if (method === "ato_logbook" || method === "record_only") return 0;
     const rate = method === "ato_cents" ? atoRateForDate(trip.date) : number(trip.rateCents);
@@ -84,7 +87,7 @@
     let atoCents = 0;
     let cappedKilometres = 0;
     const groups = new Map();
-    trips.forEach((trip) => {
+    trips.filter(isWorkTrip).forEach((trip) => {
       const method = claimMethodForMode(trip, recordingMode);
       if (method === "employer") employer += claimAmount(trip, recordingMode);
       if (method !== "ato_cents") return;
@@ -102,7 +105,7 @@
   }
   function logbookSummary(period, trips) {
     const totalKilometres = Math.max(0, number(period.closingOdometer) - number(period.openingOdometer));
-    const businessKilometres = trips.filter((trip) => trip.claimMethod === "ato_logbook" && String(trip.vehicleRegistration || "").toUpperCase() === String(period.vehicleRegistration || "").toUpperCase() && trip.date >= period.startDate && trip.date <= period.endDate).reduce((sum, trip) => sum + totalDistance(trip), 0);
+    const businessKilometres = trips.filter((trip) => isWorkTrip(trip) && trip.claimMethod === "ato_logbook" && String(trip.vehicleRegistration || "").toUpperCase() === String(period.vehicleRegistration || "").toUpperCase() && trip.date >= period.startDate && trip.date <= period.endDate).reduce((sum, trip) => sum + totalDistance(trip), 0);
     return { businessKilometres, totalKilometres, businessUsePercent: totalKilometres ? businessKilometres / totalKilometres * 100 : 0 };
   }
   function logbookAnnualSummary(record, period, trips = []) {
@@ -122,15 +125,18 @@
     const client = String(filters.client || "").toLowerCase().trim();
     const from = String(filters.from || "");
     const to = String(filters.to || "");
+    const classification = String(filters.classification || "all");
     return trips.filter((trip) => {
       const searchable = `${trip.start || ""} ${(trip.stops || []).join(" ")} ${trip.end || ""} ${trip.purpose || ""} ${trip.clientProject || ""} ${trip.vehicle || ""} ${trip.vehicleRegistration || ""} ${trip.notes || ""}`.toLowerCase();
-      return (!query || searchable.includes(query)) && (!client || String(trip.clientProject || "").toLowerCase().includes(client)) && (!from || trip.date >= from) && (!to || trip.date <= to);
+      return (!query || searchable.includes(query)) && (!client || String(trip.clientProject || "").toLowerCase().includes(client)) && (!from || trip.date >= from) && (!to || trip.date <= to) && (classification === "all" || normalizeTripClassification(trip.classification) === classification);
     });
   }
 
   function filterError(from, to) { return from && to && from > to ? "The From date must be before or the same as the To date." : ""; }
 
-  function validateTrip(trip) {
+  function validateTrip(trip, options = {}) {
+    const classification = normalizeTripClassification(trip.classification);
+    if (options.requireClassified && classification === "unclassified") return "Choose whether this is a Work or Personal trip.";
     const date = String(trip.date || "");
     if (!isCalendarDate(date)) return "Enter a valid trip date.";
     if (trip.endDate && (!isCalendarDate(trip.endDate) || trip.endDate < date)) return "Journey end date cannot be before its start date.";
@@ -182,7 +188,7 @@
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
+  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, isWorkTrip, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, normalizeTripClassification, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

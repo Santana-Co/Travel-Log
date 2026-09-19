@@ -6,14 +6,14 @@ Travel Log is an Australian work-travel, compliance, and evidence web pilot. Sig
 
 The responsive static application is deployed from `main` through GitHub Pages. Browser JavaScript talks directly to Supabase Auth, PostgREST, and RPCs; PostgreSQL constraints and RLS enforce tenant ownership. A protected Cloudflare Worker mediates route-distance requests to an external routing provider.
 
-The current repository/database schema and browser minimum supported schema are both version **3**. Startup accepts version 3 or higher and fails safely on missing, invalid, errored, or older versions.
+This branch defines application schema **4** and a browser minimum of **4** for explicit trip classification. Production and staging remain on schema/browser version **3** until the separately approved database-first release is completed; do not deploy this browser before its schema-v4 migration. Startup accepts the minimum version or higher and fails safely on missing, invalid, errored, or older versions.
 
 Live staging tests have verified two-user tenant isolation across the five private application tables and relevant RPCs. Production schema drift, account deletion, and local calendar-date handling have been corrected and verified. A logical backup and disposable PostgreSQL restore validated application schema/data recovery, but full managed Supabase recovery remains **PARTIALLY VERIFIED**.
 
 ## Features
 
 - Email/password accounts, private cloud records, privacy acceptance, data export, and reauthenticated account deletion
-- Streamlined trip creation plus readable journey summaries, progressively revealed record details, inline recovery, editing, duplication, deletion, multiple ordered stops, round trips, search, and filters
+- Streamlined trip creation plus explicit Work/Personal intent, readable journey summaries, progressively revealed record details, inline recovery, editing, duplication, deletion, multiple ordered stops, round trips, search, and classification/date/client filters
 - Protected driving-distance calculation plus manual distance entry and Google Maps route links
 - Saved locations and per-trip vehicle/registration details
 - Employer/general, ATO cents-per-kilometre, and representative-logbook/odometer recording modes
@@ -65,7 +65,7 @@ Run the isolated Chromium critical-flow tests (after `npx playwright install chr
 npm run test:browser
 ```
 
-These tests load the real application assets with deterministic synthetic Auth, schema, profile, and trip responses. They cover the essential-first trip form at desktop and mobile widths, validation recovery, CRUD/duplication, local dates, and schema compatibility. They block non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
+These tests load the real application assets with deterministic synthetic Auth, schema, profile, and trip responses. They cover the essential-first trip form at desktop and mobile widths, classification and filtering, validation recovery, CRUD/duplication, local dates, CSV/JSON/print classification output, and schema compatibility. They block non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
 
 The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration:
 

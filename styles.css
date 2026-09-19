@@ -29,3 +29,15 @@ dialog { background:var(--card); border:0; border-radius:14px; box-shadow:0 25px
 .profile-form { align-items:end; display:grid; gap:10px; grid-template-columns:1fr auto; }
 .profile-form .button { min-height:42px; }
 @media (max-width:640px) { .profile-form { grid-template-columns:1fr; } }
+
+/* Explicit trip intent stays visible and keyboard-friendly without adding form density. */
+.filter-grid { grid-template-columns:2fr repeat(4,1fr); }
+.trip-classification { border:1px solid var(--line); border-radius:999px; display:inline-block; font-size:.72rem; font-weight:750; margin-top:7px; padding:3px 8px; }
+.classification-field { border:0; margin:0; padding:0; }
+.classification-field legend { font-size:.85rem; font-weight:700; margin-bottom:7px; }
+.classification-options { display:flex; gap:10px; }
+.classification-options label { align-items:center; background:var(--subtle); border:1px solid var(--line); border-radius:8px; display:flex; flex:1; min-height:44px; padding:9px 12px; }
+.classification-options input { width:auto; }
+.field-help { color:var(--muted); font-size:.76rem; font-weight:500; line-height:1.4; margin:7px 0 0; }
+@media (max-width:840px) { .filter-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width:640px) { .filter-grid { grid-template-columns:1fr; } }

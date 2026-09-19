@@ -13,11 +13,12 @@
     recording_mode: new URLSearchParams(location.search).get("mode") || "general",
   };
   const state = {
-    schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 3),
+    schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 4),
     reads: {},
     trips: [{
       id: "00000000-0000-4000-8000-000000000010",
       user_id: user.id,
+      classification: "unclassified",
       trip_date: "2026-07-14",
       trip_end_date: "2026-07-14",
       start_address: "Synthetic Depot",

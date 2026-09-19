@@ -99,3 +99,16 @@ Rates, limits, effective dates, authoritative sources, and applied versions belo
 Travel Log may record evidence and explain generic calculations, but must not present outputs as personalised tax advice or eligibility determinations. Users remain responsible for their circumstances and authoritative professional guidance.
 
 **Evidence:** `ato-guide.html`, `index.html`, `report.js`.
+
+## ADR-011 — Trip classification records explicit user intent
+
+**Date:** 2026-09-19
+**Status:** Accepted; release pending
+
+Every trip has exactly one constrained classification: `work`, `personal`, or `unclassified`. Existing records migrate to Unclassified without inference. New and duplicated records require a deliberate Work or Personal choice, except that an existing Unclassified record may remain unchanged during an unrelated edit.
+
+Work means the user recorded the journey as work-related. It is not a determination of tax deductibility, ATO eligibility, or employer reimbursement. Financial estimates and logbook business kilometres include only explicitly Work trips; Personal and Unclassified records remain available in general totals, filters, and exports.
+
+**Consequences:** schema version 4 is a database-first release. The additive default keeps the version-3 browser compatible while the database transitions; the version-4 browser must not deploy before the migration is applied and verified.
+
+**Evidence:** `supabase/trip-classification-migration.sql`, `logic.js`, `app.js`, `tests/logic.test.cjs`, `tests/browser/critical-flow.spec.cjs`.

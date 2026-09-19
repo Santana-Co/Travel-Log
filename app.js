@@ -4,7 +4,7 @@ if (!runtimeConfig?.supabaseUrl || !runtimeConfig?.supabasePublishableKey || !ru
 const { supabaseUrl, supabasePublishableKey, distanceApiUrl } = runtimeConfig;
 const appEnvironment = runtimeConfig.environment === "staging" ? "staging" : "production";
 const privacyVersion = "2026-08-20-ato-logbook";
-const requiredSchemaVersion = 3;
+const requiredSchemaVersion = 4;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 $("#build-label").textContent = runtimeConfig.buildLabel || (appEnvironment === "staging" ? "Testing app" : "Live app");
@@ -14,7 +14,7 @@ const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
 const compatibilityDialog = $("#compatibility-dialog");
-const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, normalizeTripClassification, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
@@ -69,11 +69,11 @@ function passwordError(password) {
 }
 
 function fromDatabase(row) {
-  return { id: row.id, date: row.trip_date, endDate: row.trip_end_date || row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", vehicleRegistration: row.vehicle_registration || "", claimMethod: row.claim_method || (Number(row.rate_cents) > 0 ? "employer" : "record_only"), rateCents: Number(row.rate_cents || 0), odometerStart: row.odometer_start === null || row.odometer_start === undefined ? "" : Number(row.odometer_start), odometerEnd: row.odometer_end === null || row.odometer_end === undefined ? "" : Number(row.odometer_end), notes: row.notes || "" };
+  return { id: row.id, classification: normalizeTripClassification(row.classification), date: row.trip_date, endDate: row.trip_end_date || row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", vehicleRegistration: row.vehicle_registration || "", claimMethod: row.claim_method || (Number(row.rate_cents) > 0 ? "employer" : "record_only"), rateCents: Number(row.rate_cents || 0), odometerStart: row.odometer_start === null || row.odometer_start === undefined ? "" : Number(row.odometer_start), odometerEnd: row.odometer_end === null || row.odometer_end === undefined ? "" : Number(row.odometer_end), notes: row.notes || "" };
 }
 
 function toDatabase(trip) {
-  return { id: trip.id, user_id: currentUser.id, trip_date: trip.date, trip_end_date: trip.endDate || trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, vehicle_registration: trip.vehicleRegistration || null, claim_method: trip.claimMethod || (Number(trip.rateCents) > 0 ? "employer" : "record_only"), rate_cents: Number(trip.rateCents || 0), odometer_start: trip.odometerStart === "" || trip.odometerStart === undefined ? null : Number(trip.odometerStart), odometer_end: trip.odometerEnd === "" || trip.odometerEnd === undefined ? null : Number(trip.odometerEnd), notes: trip.notes };
+  return { id: trip.id, user_id: currentUser.id, classification: normalizeTripClassification(trip.classification), trip_date: trip.date, trip_end_date: trip.endDate || trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, vehicle_registration: trip.vehicleRegistration || null, claim_method: trip.claimMethod || (Number(trip.rateCents) > 0 ? "employer" : "record_only"), rate_cents: Number(trip.rateCents || 0), odometer_start: trip.odometerStart === "" || trip.odometerStart === undefined ? null : Number(trip.odometerStart), odometer_end: trip.odometerEnd === "" || trip.odometerEnd === undefined ? null : Number(trip.odometerEnd), notes: trip.notes };
 }
 
 function fromLogbookDatabase(row) {
@@ -85,7 +85,7 @@ function fromAnnualOdometerDatabase(row) {
 }
 
 function filteredTrips() {
-  return filterTripRecords(trips, { query: $("#search").value, client: $("#filter-client").value, from: $("#filter-from").value, to: $("#filter-to").value });
+  return filterTripRecords(trips, { query: $("#search").value, client: $("#filter-client").value, from: $("#filter-from").value, to: $("#filter-to").value, classification: $("#filter-classification").value });
 }
 
 function render() {
@@ -103,7 +103,7 @@ function render() {
   if (recordingMode === "ato_cents") {
     $("#claim-summary-label").textContent = "ATO cents/km estimate";
     $("#claim-total").textContent = formatMoney(claims.atoCents);
-    $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "ATO estimates are capped automatically in the summary.";
+    $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} of Work travel is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "Only Work trips are included; ATO estimates are capped automatically in the summary.";
   } else if (recordingMode === "ato_logbook") {
     const annualBusinessKilometres = annualOdometerRecords.reduce((sum, record) => {
       const period = logbookPeriods.find((item) => item.id === record.logbookPeriodId);
@@ -112,11 +112,11 @@ function render() {
     }, 0);
     $("#claim-summary-label").textContent = "Estimated business km";
     $("#claim-total").textContent = formatKm(annualBusinessKilometres);
-    $("#ato-cap-message").textContent = "Calculated from each valid logbook percentage and the matching financial-year odometer record.";
+    $("#ato-cap-message").textContent = "Calculated from Work trips in each valid logbook and the matching financial-year odometer record.";
   } else {
     $("#claim-summary-label").textContent = "Reimbursement estimate";
     $("#claim-total").textContent = formatMoney(claims.employer);
-    $("#ato-cap-message").textContent = "Only trips with an employer rate are included in this estimate.";
+    $("#ato-cap-message").textContent = "Only Work trips with an employer rate are included in this estimate.";
   }
   $("#trip-label").textContent = matchingTrips.length === trips.length ? (trips.length === 1 ? "1 trip" : `${trips.length} trips`) : `${matchingTrips.length} of ${trips.length} trips`;
   $("#empty-state").hidden = trips.length > 0;
@@ -124,6 +124,8 @@ function render() {
     const stops = trip.stops || [];
     const waypoints = stops.length ? `&waypoints=${encodeURIComponent(stops.join("|"))}` : "";
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(trip.start)}&destination=${encodeURIComponent(trip.end)}${waypoints}&travelmode=driving`;
+    const classification = normalizeTripClassification(trip.classification);
+    const classificationLabel = { work: "Work", personal: "Personal", unclassified: "Unclassified" }[classification];
     const displayedMethod = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
     const displayedClaim = claimAmount(trip, recordingMode);
     const methodLabel = { record_only: "record only", employer: "employer reimbursement", ato_cents: `ATO ${atoIncomeYear(trip.date)} cents/km`, ato_logbook: "ATO logbook" }[displayedMethod] || "record only";
@@ -143,11 +145,11 @@ function render() {
     ].filter(Boolean);
     const workRows = [["Purpose", trip.purpose], ["Client or project", trip.clientProject]].filter(([, value]) => value);
     const vehicleRows = [["Vehicle", trip.vehicle], ["Registration", trip.vehicleRegistration], hasOdometer && ["Odometer", `${trip.odometerStart}–${trip.odometerEnd} km`]].filter(Boolean).filter(([, value]) => value);
-    const additionalRows = [["Recording method", methodLabel], trip.rateCents > 0 && ["Employer rate", `${trip.rateCents}¢/km`], displayedClaim > 0 && ["Estimate", formatMoney(displayedClaim)], ["Notes", trip.notes]].filter(Boolean).filter(([, value]) => value);
+    const additionalRows = [["Trip type", classificationLabel], ["Recording method", methodLabel], trip.rateCents > 0 && ["Employer rate", `${trip.rateCents}¢/km`], displayedClaim > 0 && ["Estimate", formatMoney(displayedClaim)], ["Notes", trip.notes]].filter(Boolean).filter(([, value]) => value);
     const rows = (items) => items.map(([term, value]) => `<div><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
     const detailGroup = (title, items) => items.length ? `<section><h4>${title}</h4><dl>${rows(items)}</dl></section>` : "";
     const tripLabel = `${trip.start} to ${trip.end}`;
-    return `<article class="trip"><h3 class="sr-only">Trip from ${escapeHtml(trip.start)} to ${escapeHtml(trip.end)}</h3><div class="trip-overview"><div class="trip-date">${dates}</div><div class="trip-distance"><strong>${formatKm(totalDistance(trip))}</strong><span>${trip.roundTrip ? "Round trip" : "One way"}</span></div></div><div class="trip-main"><div class="route" aria-label="Journey from ${escapeAttribute(trip.start)} to ${escapeAttribute(trip.end)}"><span class="route-label">From</span><strong>${escapeHtml(trip.start)}</strong>${stops.length ? `<span class="route-stops">via ${stops.length} stop${stops.length === 1 ? "" : "s"}</span>` : ""}<span class="route-arrow" aria-hidden="true">↓</span><span class="route-label">Destination</span><strong>${escapeHtml(trip.end)}</strong></div><p class="trip-method">${escapeHtml(methodLabel)}${displayedClaim ? ` · ${escapeHtml(formatMoney(displayedClaim))} estimate` : ""}</p><p class="trip-evidence">${escapeHtml(evidenceSummary)}</p><details class="trip-record-details"><summary>View trip details</summary><div class="trip-detail-groups">${detailGroup("Journey", journeyRows)}${detailGroup("Work details", workRows)}${detailGroup("Vehicle", vehicleRows)}${detailGroup("Additional information", additionalRows)}</div></details></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open route for ${escapeAttribute(tripLabel)}">Route</a><button class="text-button" data-duplicate="${trip.id}" aria-label="Duplicate trip ${escapeAttribute(tripLabel)}">Duplicate</button><button class="text-button" data-edit="${trip.id}" aria-label="Edit trip ${escapeAttribute(tripLabel)}">Edit</button><button class="text-button" data-delete="${trip.id}" aria-label="Delete trip ${escapeAttribute(tripLabel)}">Delete</button></div></article>`;
+    return `<article class="trip"><h3 class="sr-only">Trip from ${escapeHtml(trip.start)} to ${escapeHtml(trip.end)}</h3><div class="trip-overview"><div><div class="trip-date">${dates}</div><span class="trip-classification">${escapeHtml(classificationLabel)}</span></div><div class="trip-distance"><strong>${formatKm(totalDistance(trip))}</strong><span>${trip.roundTrip ? "Round trip" : "One way"}</span></div></div><div class="trip-main"><div class="route" aria-label="Journey from ${escapeAttribute(trip.start)} to ${escapeAttribute(trip.end)}"><span class="route-label">From</span><strong>${escapeHtml(trip.start)}</strong>${stops.length ? `<span class="route-stops">via ${stops.length} stop${stops.length === 1 ? "" : "s"}</span>` : ""}<span class="route-arrow" aria-hidden="true">↓</span><span class="route-label">Destination</span><strong>${escapeHtml(trip.end)}</strong></div><p class="trip-method">${escapeHtml(methodLabel)}${displayedClaim ? ` · ${escapeHtml(formatMoney(displayedClaim))} estimate` : ""}</p><p class="trip-evidence">${escapeHtml(evidenceSummary)}</p><details class="trip-record-details"><summary>View trip details</summary><div class="trip-detail-groups">${detailGroup("Journey", journeyRows)}${detailGroup("Work details", workRows)}${detailGroup("Vehicle", vehicleRows)}${detailGroup("Additional information", additionalRows)}</div></details></div><div class="trip-actions"><a class="text-button" href="${mapsUrl}" target="_blank" rel="noopener noreferrer" aria-label="Open route for ${escapeAttribute(tripLabel)}">Route</a><button class="text-button" data-duplicate="${trip.id}" aria-label="Duplicate trip ${escapeAttribute(tripLabel)}">Duplicate</button><button class="text-button" data-edit="${trip.id}" aria-label="Edit trip ${escapeAttribute(tripLabel)}">Edit</button><button class="text-button" data-delete="${trip.id}" aria-label="Delete trip ${escapeAttribute(tripLabel)}">Delete</button></div></article>`;
   }).join("") || (trips.length ? `<div class="empty-state"><h3>No matching trips</h3><p>Clear or change the filters to see more records.</p></div>` : "");
 }
 
@@ -365,6 +367,7 @@ function clearTripFormMessage() {
 
 function tripFieldForError(message) {
   const mappings = [
+    [/Work or Personal|trip type/i, 'input[name="trip-classification"]'],
     [/journey end|end date/i, "#trip-end-date"],
     [/trip date|date/i, "#trip-date"],
     [/distance|odometer difference/i, "#distance"],
@@ -404,6 +407,13 @@ function openForm(trip, duplicate = false) {
   $("#trip-date").value = dates.startDate;
   $("#trip-end-date").value = dates.endDate;
   form.dataset.startDate = dates.startDate;
+  const originalClassification = normalizeTripClassification(trip?.classification);
+  const classification = duplicate && originalClassification === "unclassified" ? "" : (trip ? originalClassification : "");
+  form.dataset.originalClassification = trip && !duplicate ? originalClassification : "";
+  form.querySelectorAll('input[name="trip-classification"]').forEach((control) => { control.checked = control.value === classification; });
+  const classificationCurrent = $("#classification-current");
+  classificationCurrent.hidden = !(trip && !duplicate && originalClassification === "unclassified");
+  classificationCurrent.textContent = classificationCurrent.hidden ? "" : "This historical trip is Unclassified. You may keep it that way or deliberately choose Work or Personal.";
   $("#distance").value = trip?.distance || "";
   $("#purpose").value = trip?.purpose || "";
   $("#client-project").value = trip?.clientProject || "";
@@ -424,7 +434,7 @@ function openForm(trip, duplicate = false) {
   $("#trip-more-details").open = Boolean(trip) || normalizeRecordingMode(form.dataset.recordingMode) !== "general";
   const contextMessage = $("#trip-context-message");
   contextMessage.hidden = !duplicate;
-  contextMessage.textContent = duplicate ? "Trip details have been copied. The new trip uses today's local date, and odometer readings have been left blank." : "";
+  contextMessage.textContent = duplicate ? `Trip details have been copied. The new trip uses today's local date, and odometer readings have been left blank.${originalClassification === "unclassified" ? " Choose Work or Personal before saving." : ""}` : "";
   dialog.showModal();
 }
 
@@ -433,11 +443,11 @@ function exportCsv() {
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
-  const header = ["Journey starts", "Journey ends", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
+  const header = ["Journey starts", "Journey ends", "Classification", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
   const recordingMode = activeRecordingMode();
   const rows = reportTrips.map((trip) => {
     const method = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
-    return [trip.date, trip.endDate || trip.date, trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, method, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), method === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip, recordingMode).toFixed(2), trip.notes];
+    return [trip.date, trip.endDate || trip.date, normalizeTripClassification(trip.classification), trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, method, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), method === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip, recordingMode).toFixed(2), trip.notes];
   });
   const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
   downloadBlob("travel-log-report.csv", new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -449,7 +459,7 @@ function openPrintableReport() {
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
   const recordingMode = activeRecordingMode();
-  const payload = { generatedAt: new Date().toISOString(), recordingMode, user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim() }, logbookPeriods, annualOdometerRecords, logbookTrips: trips, trips: reportTrips, claimSummary: claimSummary(reportTrips, recordingMode) };
+  const payload = { generatedAt: new Date().toISOString(), recordingMode, user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim(), classification: $("#filter-classification").value }, logbookPeriods, annualOdometerRecords, logbookTrips: trips, trips: reportTrips, claimSummary: claimSummary(reportTrips, recordingMode) };
   sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
   const reportWindow = window.open("report.html", "_blank");
   if (!reportWindow) { sessionStorage.removeItem("travel-log-print-report"); alert("Allow pop-ups for Travel Log, then try Print / Save PDF again."); }
@@ -835,7 +845,8 @@ $("#search").addEventListener("input", render);
 $("#filter-from").addEventListener("input", render);
 $("#filter-to").addEventListener("input", render);
 $("#filter-client").addEventListener("input", render);
-$("#clear-filters").addEventListener("click", () => { $("#search").value = ""; $("#filter-from").value = ""; $("#filter-to").value = ""; $("#filter-client").value = ""; render(); });
+$("#filter-classification").addEventListener("change", render);
+$("#clear-filters").addEventListener("click", () => { $("#search").value = ""; $("#filter-from").value = ""; $("#filter-to").value = ""; $("#filter-client").value = ""; $("#filter-classification").value = "all"; render(); });
 $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
@@ -862,9 +873,11 @@ form.addEventListener("submit", async (event) => {
   const stops = [...document.querySelectorAll(".stop-address")].map((input) => input.value.trim()).filter(Boolean);
   const recordingMode = normalizeRecordingMode(form.dataset.recordingMode);
   const employerRate = Number($("#rate-cents").value || 0);
-  const claimMethod = recordingMode === "general" ? (employerRate > 0 ? "employer" : "record_only") : recordingMode;
-  const trip = { id, date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
-  const validationError = validateTrip(trip);
+  const selectedClassification = form.querySelector('input[name="trip-classification"]:checked')?.value;
+  const effectiveClassification = selectedClassification || form.dataset.originalClassification || "unclassified";
+  const claimMethod = effectiveClassification === "personal" ? "record_only" : (recordingMode === "general" ? (employerRate > 0 ? "employer" : "record_only") : recordingMode);
+  const trip = { id, classification: effectiveClassification, date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
+  const validationError = validateTrip(trip, { requireClassified: !$("#trip-id").value });
   if (validationError) return showTripFormError(validationError);
   if (claimMethod === "ato_logbook" && !logbookPeriods.some((period) => period.vehicleRegistration.toUpperCase() === trip.vehicleRegistration.toUpperCase() && trip.date >= period.startDate && trip.endDate <= period.endDate)) return showTripFormError("Create a matching 12-week logbook period for this registration and journey dates in Account and privacy before saving an ATO logbook trip.", $("#vehicle-registration"));
   setButtonBusy(saveButton, true, "Saving…");

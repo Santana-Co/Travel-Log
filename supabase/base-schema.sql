@@ -11,6 +11,7 @@ create table if not exists public.profiles (
 create table if not exists public.trips (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  classification text not null default 'unclassified' constraint trips_classification_valid check (classification in ('work', 'personal', 'unclassified')),
   trip_date date not null,
   start_address text not null,
   stops jsonb not null default '[]'::jsonb check (jsonb_typeof(stops) = 'array'),
