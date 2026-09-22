@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, normalizeTripClassification, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
 
 test("uses the local calendar date around Brisbane midnight", () => {
   const originalTimeZone = process.env.TZ;
@@ -42,11 +42,31 @@ test("defaults new and duplicated trips to the local day while preserving edits"
   assert.deepEqual(tripCalendarDates({ date: "2026-08-20" }, false, today), { startDate: "2026-08-20", endDate: "2026-08-20" });
 });
 
-const validTrip = { date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
+const validTrip = { classification: "work", date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
 
 test("calculates round-trip distance and claim", () => {
   assert.equal(totalDistance(validTrip), 100);
   assert.equal(claimAmount(validTrip), 88);
+});
+
+test("normalizes trip classification and requires intent for new records", () => {
+  assert.equal(normalizeTripClassification("work"), "work");
+  assert.equal(normalizeTripClassification("personal"), "personal");
+  assert.equal(normalizeTripClassification("unclassified"), "unclassified");
+  assert.equal(normalizeTripClassification("business"), "unclassified");
+  assert.equal(validateTrip({ ...validTrip, classification: "personal" }, { requireClassified: true }), "");
+  assert.match(validateTrip({ ...validTrip, classification: "unclassified" }, { requireClassified: true }), /Work or Personal/i);
+  assert.equal(validateTrip({ ...validTrip, classification: "unclassified" }), "");
+});
+
+test("financial estimates include only explicitly Work trips", () => {
+  const work = { ...validTrip, claimMethod: "employer", rateCents: 100, distance: 10, roundTrip: false };
+  const personal = { ...work, classification: "personal" };
+  const unclassified = { ...work, classification: "unclassified" };
+  assert.equal(claimAmount(work), 10);
+  assert.equal(claimAmount(personal), 0);
+  assert.equal(claimAmount(unclassified), 0);
+  assert.deepEqual(claimSummary([work, personal, unclassified]), { atoCents: 0, cappedKilometres: 0, employer: 10, total: 10 });
 });
 
 test("applies current ATO rates, odometer distance, and the annual 5,000 km cap", () => {
@@ -117,10 +137,19 @@ test("normalizes profile recording modes and preserves each trip's original work
 });
 
 test("filters across date, client and text fields", () => {
-  const trips = [validTrip, { ...validTrip, date: "2026-07-01", clientProject: "Project B", purpose: "Training" }];
+  const trips = [validTrip, { ...validTrip, classification: "personal", date: "2026-07-01", clientProject: "Project B", purpose: "Training" }, { ...validTrip, classification: "unclassified", date: "2026-06-01" }];
   assert.equal(filterTrips(trips, { from: "2026-08-01", to: "2026-08-31" }).length, 1);
   assert.equal(filterTrips(trips, { client: "project b" }).length, 1);
   assert.equal(filterTrips(trips, { query: "training" }).length, 1);
+  assert.equal(filterTrips(trips, { classification: "work" }).length, 1);
+  assert.equal(filterTrips(trips, { classification: "personal", client: "project b" }).length, 1);
+  assert.equal(filterTrips(trips, { classification: "unclassified" }).length, 1);
+});
+
+test("logbook business use excludes Personal and Unclassified journeys", () => {
+  const period = { vehicleRegistration: "123ABC", startDate: "2026-07-01", endDate: "2026-09-22", openingOdometer: 1000, closingOdometer: 2000 };
+  const trip = { ...validTrip, claimMethod: "ato_logbook", vehicleRegistration: "123ABC", odometerStart: 1100, odometerEnd: 1200 };
+  assert.deepEqual(logbookSummary(period, [trip, { ...trip, classification: "personal" }, { ...trip, classification: "unclassified" }]), { businessKilometres: 100, totalKilometres: 1000, businessUsePercent: 10 });
 });
 
 test("validates filter ranges and trip bounds", () => {

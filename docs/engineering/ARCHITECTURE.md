@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document describes current `main` after the schema-version-3 release and local calendar-date fix. It does not describe roadmap ideas as deployed infrastructure. The routing Worker is separately maintained; only its checked-in client contract and repository operational guidance can be verified here.
+This document describes the schema-v4 classification release candidate built on current `main`. Production and staging remain on version 3 until the separately approved database-first release; this document does not claim that version 4 is deployed. The routing Worker is separately maintained; only its checked-in client contract and repository operational guidance can be verified here.
 
 ## System overview
 
@@ -64,7 +64,7 @@ sequenceDiagram
     end
 ```
 
-The current repository/database application schema version is **3** and the browser minimum supported version is **3**. `app.js` rejects only when the returned version is invalid or lower than the minimum; a future version greater than 3 remains accepted under this model.
+The repository release target and browser minimum are **4**. Deployed production and staging remain at **3** until release execution. `app.js` rejects only when the returned version is invalid or lower than the minimum; future versions greater than 4 remain accepted. Schema 4 must be applied and verified before this browser is deployed.
 
 ## Conceptual data model
 
@@ -72,7 +72,7 @@ The current repository/database application schema version is **3** and the brow
 |---|---|---|
 | `auth.users` | Supabase identity | Managed by Supabase Auth |
 | `profiles` | Name, privacy acceptance, theme, recording mode | `id` equals authenticated user ID |
-| `trips` | Calendar dates, ordered route, distance, purpose/project, claim/rate, vehicle/odometer, notes | `user_id`; `stops` is canonical JSONB ordered string array |
+| `trips` | Explicit intent classification, calendar dates, ordered route, distance, purpose/project, claim/rate, vehicle/odometer, notes | `user_id`; classification is constrained to `work`, `personal`, or `unclassified`; `stops` is canonical JSONB ordered string array |
 | `saved_locations` | Private label/address suggestions | `user_id` |
 | `logbook_periods` | Representative vehicle logbook periods | `user_id` |
 | `logbook_income_years` | Annual odometer records | `user_id`; composite foreign key enforces same-owner logbook link |
@@ -90,11 +90,14 @@ The live staging integration suite uses two synthetic authenticated users and co
 
 1. `openForm()` prepares a new, duplicate, or existing trip. New general trips initially show the essential date, route, and distance path; optional evidence/reporting fields are progressively disclosed. Existing, duplicated, and mode-specific trips reveal their relevant detail fields immediately.
 2. New and duplicate dates use device-local `tripCalendarDates()` defaults; edit retains stored dates.
-3. The user supplies ordered addresses/stops, purpose, distance or odometers, and optional reporting fields.
-4. `validateTrip()` checks domain rules without converting calendar dates through UTC ISO strings. Trip-form failures are shown inline and focus the first invalid field without discarding entered values.
-5. `toDatabase()` maps to database columns and includes the signed-in user ID.
-6. PostgREST performs insert/update/delete; RLS and constraints enforce server-side ownership and integrity.
-7. The browser reloads and renders the user's records. Deletes require confirmation.
+3. New/duplicated trips require an explicit Work or Personal choice. Historical rows migrate to Unclassified and remain editable without forced reclassification.
+4. The user supplies ordered addresses/stops, purpose, distance or odometers, and optional reporting fields.
+5. `validateTrip()` checks domain rules without converting calendar dates through UTC ISO strings. Trip-form failures are shown inline and focus the first invalid field without discarding entered values.
+6. `toDatabase()` maps to database columns and includes the signed-in user ID.
+7. PostgREST performs insert/update/delete; RLS and constraints enforce server-side ownership and integrity.
+8. The browser reloads and renders the user's records. Deletes require confirmation.
+
+Classification records the user's stated trip intent; it does not establish tax deductibility, ATO eligibility, or employer reimbursement. General displayed-distance totals include the filtered set and are labelled accordingly. Financial/reimbursement estimates and representative-logbook business kilometres include only explicitly Work trips; Personal and Unclassified trips remain visible and exportable but are conservatively excluded.
 
 Trip cards prioritise the date, total distance, journey direction, and round-trip state. A native details disclosure groups existing journey, work, vehicle, and additional record fields while omitting empty optional groups. Odometer-backed distance is identifiable from stored readings. For other trips, the current schema stores the distance but not whether it was entered manually or produced by the route service, so the UI reports that provenance as not recorded.
 
@@ -165,7 +168,7 @@ A private logical production backup was checksum-verified and restored to dispos
 - Browser input is untrusted. Supabase RLS/constraints are the data security boundary.
 - Route addresses cross the Worker/provider boundary; report payloads briefly enter `sessionStorage`; exports leave application control.
 
-The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration boundaries, and blocks non-loopback requests. It covers authenticated startup, schema compatibility, the essential-first trip flow and validation recovery at desktop/mobile widths, trip CRUD/duplication, and Brisbane-local date behaviour. Broader auth, reporting, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
+The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration boundaries, and blocks non-loopback requests. It covers authenticated startup, schema compatibility, explicit classification, classification filtering, conservative totals, CSV/JSON/print classification output, the essential-first trip flow and validation recovery at desktop/mobile widths, trip CRUD/duplication, and Brisbane-local date behaviour. Broader auth, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
 
 ## Calendar dates and timestamps
 

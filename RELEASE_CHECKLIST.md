@@ -21,8 +21,8 @@ Use this checklist for every production release.
 
 1. Add an additive, repeatable migration in `supabase/`. Do not delete or rename production columns in the same release.
 2. Increase the browser's `requiredSchemaVersion` in `app.js` only if the browser release depends on the new schema. It is a minimum supported database version and may remain lower during a compatible staged rollout.
-3. Add the migration to `supabase/migrations.json` immediately before `schema-version-migration.sql` and increase its `schemaVersion`.
-4. Update the version inserted by `supabase/schema-version-migration.sql` to the same number.
+3. Add the migration once at the end of `supabase/migrations.json` and increase its `schemaVersion` when the migration establishes a new application contract.
+4. Have the final migration set `private.app_schema_state` to that same version only after all dependent schema changes succeed. Historical version migrations remain immutable.
 5. If the existing browser minimum remains compatible, merge the repository-owned migration before applying it to production. Apply and verify the production migration before deploying any browser release whose `requiredSchemaVersion` depends on it.
 6. Verify the contract in the SQL Editor:
 

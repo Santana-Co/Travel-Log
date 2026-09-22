@@ -23,17 +23,17 @@ Exit criteria:
 
 ## Stage 1 — Build: dependable core web workflow
 
-Implemented: authenticated trip create/read/update/delete and duplication; local calendar dates; ordered stops; addresses and saved locations; manual or routed distance; round trips; purpose/project/notes; per-trip vehicle fields; validation; search/date/client filters; totals.
+Implemented: authenticated trip create/read/update/delete and duplication; local calendar dates; ordered stops; addresses and saved locations; manual or routed distance; round trips; purpose/project/notes; per-trip vehicle fields; validation; search/date/client filters; totals. Explicit Work/Personal/Unclassified classification is implemented in the schema-v4 release candidate but is not yet deployed.
 
-Missing or incomplete: explicit work/personal classification, journey time, manual-distance correction reasons/audit evidence, selectable sorting, dedicated financial-year filtering, reusable vehicle profiles, and automated mobile-width workflow coverage.
+Missing or incomplete: classification release execution, journey time, manual-distance correction reasons/audit evidence, selectable sorting, dedicated financial-year filtering, reusable vehicle profiles, and broader automated mobile-width workflow coverage.
 
 Exit: reliable persistence and validation, protected destructive actions, strong desktop/mobile behaviour, and trustworthy primary trip workflows.
 
 ## Stage 2 — Build: reporting and evidence
 
-Implemented: filtered CSV, JSON account export, printable/PDF-oriented report, calculation summaries, and formula-safe CSV cells.
+Implemented: filtered CSV, JSON account export, printable/PDF-oriented report, calculation summaries, and formula-safe CSV cells. The schema-v4 release candidate adds classification consistently across these outputs and excludes Personal/Unclassified trips from Work estimates.
 
-Missing or incomplete: work/personal totals, richer grouping, audit history, and automated reconciliation across screen, CSV, JSON, and print output.
+Missing or incomplete: deployment of classification-aware totals/outputs, richer grouping, audit history, and broader reconciliation across screen, CSV, JSON, and print output.
 
 Exit: understandable accountant/employer outputs whose totals and evidence can be reproduced and tested.
 

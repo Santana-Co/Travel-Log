@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { readFile } = require("node:fs/promises");
 
 const localDate = "2026-09-10";
 const storedStartDate = "2026-08-20";
@@ -36,6 +37,7 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(baselineTrip.locator(".route")).toContainText("via 1 stop");
   await expect(baselineTrip.locator(".trip-distance")).toContainText("25 km");
   await expect(baselineTrip.locator(".trip-distance")).toContainText("Round trip");
+  await expect(baselineTrip.locator(".trip-classification")).toHaveText("Unclassified");
   await expect(baselineTrip.locator(".trip-evidence")).toContainText("purpose, client/project, vehicle, notes");
   await expect(baselineTrip).not.toContainText("Notes: —");
   await baselineTrip.locator(".trip-record-details summary").click();
@@ -44,6 +46,11 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(baselineTrip.getByText("Not recorded", { exact: true })).toBeVisible();
   await expect(baselineTrip.getByRole("heading", { name: "Work details" })).toBeVisible();
   await expect(baselineTrip.getByRole("heading", { name: "Vehicle" })).toBeVisible();
+
+  await baselineTrip.getByRole("button", { name: "Edit" }).click();
+  await expect(page.locator("#classification-current")).toContainText("historical trip is Unclassified");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(baselineTrip.locator(".trip-classification")).toHaveText("Unclassified");
 
   await page.getByRole("button", { name: "+ Add trip" }).click();
   await expect(page.getByRole("heading", { name: "Trip essentials" })).toBeVisible();
@@ -55,6 +62,11 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(page.locator("#trip-date")).toHaveValue(localDate);
   await expect(page.locator("#trip-end-date")).toHaveValue(localDate);
   await page.locator("#start-address").fill("Preserved synthetic start");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.locator("#trip-form-message")).toContainText("Work or Personal");
+  await expect(page.locator("#start-address")).toHaveValue("Preserved synthetic start");
+  await expect(page.getByLabel("Work", { exact: true })).toBeFocused();
+  await page.getByLabel("Work", { exact: true }).check();
   await page.getByRole("button", { name: "Save trip" }).click();
   await expect(page.locator("#trip-form-message")).toContainText("Distance must be greater than 0");
   await expect(page.locator("#start-address")).toHaveValue("Preserved synthetic start");
@@ -85,6 +97,7 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(createdTrip).toContainText("Synthetic Brisbane End");
   await expect(createdTrip).toContainText("24.5 km");
   await expect(createdTrip).toContainText("Created by browser fixture");
+  await expect(createdTrip.locator(".trip-classification")).toHaveText("Work");
 
   await createdTrip.getByRole("button", { name: "Edit" }).click();
   await expect(page.locator("#trip-date")).toHaveValue(storedStartDate);
@@ -102,6 +115,7 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(page.locator("#trip-end-date")).toHaveValue(localDate);
   await expect(page.locator("#client-project")).toHaveValue("Synthetic client updated");
   await expect(page.locator("#start-address")).toHaveValue("Synthetic Brisbane Start");
+  await expect(page.getByLabel("Work", { exact: true })).toBeChecked();
   await page.getByRole("button", { name: "Save trip" }).click();
   await expect(page.locator("article.trip", { hasText: "Synthetic client updated" })).toHaveCount(2);
 
@@ -117,12 +131,72 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   expect(page.externalRequests).toEqual([]);
 });
 
+test("Personal filtering and Unclassified duplication require deliberate intent", async ({ page }) => {
+  await page.goto("/");
+  const historicalTrip = page.locator("article.trip", { hasText: "Fixture baseline" });
+  await historicalTrip.getByRole("button", { name: "Duplicate" }).click();
+  await expect(page.locator("#trip-context-message")).toContainText("Choose Work or Personal");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.locator("#trip-form-message")).toContainText("Work or Personal");
+  await page.getByLabel("Personal", { exact: true }).check();
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.locator("article.trip", { hasText: "Fixture baseline" })).toHaveCount(2);
+
+  const personalTrip = page.locator("article.trip", { hasText: "Fixture baseline" }).filter({ has: page.locator(".trip-classification", { hasText: "Personal" }) });
+  await personalTrip.getByRole("button", { name: "Duplicate" }).click();
+  await expect(page.getByLabel("Personal", { exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.locator("article.trip", { hasText: "Fixture baseline" })).toHaveCount(3);
+
+  await page.locator("#filter-classification").selectOption("personal");
+  await expect(page.locator("article.trip")).toHaveCount(2);
+  await expect(page.locator("article.trip .trip-classification")).toHaveText(["Personal", "Personal"]);
+  await page.locator("#filter-classification").selectOption("unclassified");
+  await expect(page.locator("article.trip")).toHaveCount(1);
+  await expect(page.locator("article.trip .trip-classification")).toHaveText("Unclassified");
+  await page.getByRole("button", { name: "Clear filters" }).click();
+  await expect(page.locator("article.trip")).toHaveCount(3);
+  expect(page.externalRequests).toEqual([]);
+});
+
+test("CSV, account JSON, and printable reports represent Unclassified trips honestly", async ({ page, context }) => {
+  await page.goto("/");
+  await expect(page.locator("#total-distance")).toHaveText("25 km");
+  await expect(page.locator("#claim-total")).toHaveText("A$0.00");
+
+  const csvDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  const csv = await csvDownload;
+  const csvText = await readFile(await csv.path(), "utf8");
+  expect(csvText).toContain('"Classification"');
+  expect(csvText).toContain('"unclassified"');
+
+  await page.getByRole("button", { name: "Open account settings" }).click();
+  const jsonDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download my data" }).click();
+  const json = await jsonDownload;
+  const accountExport = JSON.parse(await readFile(await json.path(), "utf8"));
+  expect(accountExport.trips[0].classification).toBe("unclassified");
+  await page.locator("#close-account").click();
+
+  const reportPagePromise = context.waitForEvent("page");
+  await page.getByRole("button", { name: "Print / Save PDF" }).click();
+  const reportPage = await reportPagePromise;
+  await reportPage.waitForLoadState();
+  await expect(reportPage.getByRole("columnheader", { name: "Trip type" })).toBeVisible();
+  await expect(reportPage.getByRole("cell", { name: "Unclassified" })).toBeVisible();
+  await reportPage.close();
+  expect(page.externalRequests).toEqual([]);
+});
+
 test("first-trip essentials remain usable at a representative mobile width", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.getByRole("button", { name: "+ Add trip" }).click();
   await expect(page.locator("#trip-dialog")).toBeVisible();
   await expect(page.locator("#trip-date")).toHaveValue(localDate);
+  await expect(page.getByLabel("Work", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Personal", { exact: true })).toBeVisible();
   await expect(page.locator("#start-address")).toBeVisible();
   await expect(page.locator("#end-address")).toBeVisible();
   await expect(page.locator("#distance")).toBeVisible();
@@ -158,8 +232,8 @@ test("mode-specific required fields are revealed for an ATO logbook trip", async
   expect(page.externalRequests).toEqual([]);
 });
 
-test("schema version 2 blocks application data loading", async ({ page }) => {
-  await page.goto("/?schema=2");
+test("schema version 3 blocks application data loading", async ({ page }) => {
+  await page.goto("/?schema=3");
   await expect(page.locator("#compatibility-dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Travel Log needs a moment" })).toBeVisible();
   await expect(page.locator("#app-view")).toBeHidden();

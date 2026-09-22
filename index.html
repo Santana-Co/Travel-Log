@@ -50,8 +50,8 @@
     <main id="app-view" hidden>
       <section class="summary" aria-label="Travel summary">
         <article><span>Total trips</span><strong id="trip-count">0</strong></article>
-        <article><span>Total distance</span><strong id="total-distance">0 km</strong></article>
-        <article><span>This month</span><strong id="month-distance">0 km</strong></article>
+        <article><span>Displayed distance</span><strong id="total-distance">0 km</strong></article>
+        <article><span>This month (displayed)</span><strong id="month-distance">0 km</strong></article>
         <article><span id="claim-summary-label">Reimbursement estimate</span><strong id="claim-total">$0.00</strong></article>
       </section>
       <section class="ato-guidance" aria-label="Active travel recording method">
@@ -65,6 +65,7 @@
           <label>From<input id="filter-from" type="date" /></label>
           <label>To<input id="filter-to" type="date" /></label>
           <label>Client or project<input id="filter-client" type="search" placeholder="All clients" /></label>
+          <label>Trip type<select id="filter-classification"><option value="all">All trips</option><option value="work">Work</option><option value="personal">Personal</option><option value="unclassified">Unclassified</option></select></label>
         </div>
         <p id="filter-message" class="filter-message" role="status"></p>
         <div class="report-actions"><button id="clear-filters" class="text-button" type="button">Clear filters</button><button id="export-button" class="button secondary" type="button">Export CSV</button><button id="print-report" class="button primary" type="button">Print / Save PDF</button></div>
@@ -94,6 +95,7 @@
           <h3 id="essential-trip-heading">Trip essentials</h3>
           <div class="form-grid essential-trip-fields">
             <label>Trip date<input id="trip-date" type="date" required /></label>
+            <fieldset id="classification-field" class="classification-field full-width"><legend>Trip type</legend><div class="classification-options"><label><input type="radio" name="trip-classification" value="work" /> Work</label><label><input type="radio" name="trip-classification" value="personal" /> Personal</label></div><p class="field-help">Choose what you are recording. Work does not automatically mean tax deductible or reimbursable.</p><p id="classification-current" class="field-help" hidden></p></fieldset>
             <label class="full-width">Starting location<input id="start-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
             <label class="full-width">Destination<input id="end-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. Client office, Gold Coast" required /></label>
             <label id="distance-field" class="full-width"><span id="distance-field-label">One-way distance (km)</span><span class="distance-input"><input id="distance" type="number" min="0.1" max="100000" step="0.1" placeholder="Enter manually or calculate" required /><button type="button" id="calculate-distance" class="button secondary">Calculate route</button></span></label>
