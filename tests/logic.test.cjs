@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, normalizeTripClassification, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
+const { atoCentsRates, atoIncomeYear, atoRateForDate, claimAmount, claimSummary, csvCell, distanceSourceLabel, duplicateDistanceEvidence, filterError, filterTrips, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, manualDistanceReasonLabel, normalizeDistanceSource, normalizeRecordingMode, normalizeTripClassification, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = require("../logic.js");
 
 test("uses the local calendar date around Brisbane midnight", () => {
   const originalTimeZone = process.env.TZ;
@@ -42,7 +42,26 @@ test("defaults new and duplicated trips to the local day while preserving edits"
   assert.deepEqual(tripCalendarDates({ date: "2026-08-20" }, false, today), { startDate: "2026-08-20", endDate: "2026-08-20" });
 });
 
-const validTrip = { classification: "work", date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
+const validTrip = { classification: "work", distanceSource: "route_calculated", manualDistanceReason: "", manualDistanceNote: "", date: "2026-08-19", distance: 50, start: "Brisbane office", stops: [], end: "Gold Coast office", roundTrip: true, purpose: "Client visit", clientProject: "Project A", vehicle: "Car", rateCents: 88, notes: "" };
+
+test("normalizes and labels persisted distance evidence conservatively", () => {
+  assert.equal(normalizeDistanceSource("route_calculated"), "route_calculated");
+  assert.equal(normalizeDistanceSource("manual"), "manual");
+  assert.equal(normalizeDistanceSource("odometer"), "odometer");
+  assert.equal(normalizeDistanceSource("guessed"), "unknown");
+  assert.equal(distanceSourceLabel("unknown"), "Not recorded");
+  assert.equal(manualDistanceReasonLabel("route_unavailable"), "Route calculation unavailable");
+  assert.deepEqual(duplicateDistanceEvidence(), { distanceSource: "manual", manualDistanceReason: "copied_from_trip", manualDistanceNote: "" });
+});
+
+test("requires coherent manual-distance evidence without changing classification calculations", () => {
+  assert.match(validateTrip({ ...validTrip, distanceSource: "manual" }), /why the distance was entered manually/i);
+  assert.equal(validateTrip({ ...validTrip, distanceSource: "manual", manualDistanceReason: "actual_route_differed", manualDistanceNote: "Road closure" }), "");
+  assert.match(validateTrip({ ...validTrip, distanceSource: "route_calculated", manualDistanceReason: "other" }), /only be saved with a manually entered distance/i);
+  assert.match(validateTrip({ ...validTrip, distanceSource: "manual", manualDistanceReason: "other", manualDistanceNote: "x".repeat(301) }), /300 characters/i);
+  assert.match(validateTrip({ ...validTrip, distanceSource: "invented" }), /valid distance source/i);
+  assert.equal(claimAmount({ ...validTrip, distanceSource: "unknown", claimMethod: "employer", rateCents: 100, distance: 10, roundTrip: false }), 10);
+});
 
 test("calculates round-trip distance and claim", () => {
   assert.equal(totalDistance(validTrip), 100);

@@ -103,7 +103,7 @@ Travel Log may record evidence and explain generic calculations, but must not pr
 ## ADR-011 — Trip classification records explicit user intent
 
 **Date:** 2026-09-19
-**Status:** Accepted; release pending
+**Status:** Accepted; deployed
 
 Every trip has exactly one constrained classification: `work`, `personal`, or `unclassified`. Existing records migrate to Unclassified without inference. New and duplicated records require a deliberate Work or Personal choice, except that an existing Unclassified record may remain unchanged during an unrelated edit.
 
@@ -112,3 +112,16 @@ Work means the user recorded the journey as work-related. It is not a determinat
 **Consequences:** schema version 4 is a database-first release. The additive default keeps the version-3 browser compatible while the database transitions; the version-4 browser must not deploy before the migration is applied and verified.
 
 **Evidence:** `supabase/trip-classification-migration.sql`, `logic.js`, `app.js`, `tests/logic.test.cjs`, `tests/browser/critical-flow.spec.cjs`.
+
+## ADR-012 — Distance provenance records the current evidence state
+
+**Date:** 2026-09-23
+**Status:** Accepted; release pending
+
+Each trip has one constrained current distance source: `route_calculated`, `manual`, `odometer`, or `unknown`. Migration assigns every historical row `unknown` without inference. Manual distance requires a constrained reason and may include a short note. Duplication conservatively treats the copied value as manual evidence rather than claiming a fresh calculation.
+
+This model describes how the current recorded distance was established. It is not immutable edit history, and unrelated edits preserve the existing value.
+
+**Consequences:** schema version 5 is database-first. The additive defaults keep the deployed version-4 browser compatible while the database transitions; the version-5 browser must not deploy before migration and verification.
+
+**Evidence:** `supabase/distance-provenance-migration.sql`, `logic.js`, `app.js`, `report.js`, `tests/schema-contract.test.cjs`, `tests/browser/critical-flow.spec.cjs`.

@@ -1,7 +1,7 @@
 const payloadText = sessionStorage.getItem("travel-log-print-report");
 sessionStorage.removeItem("travel-log-print-report");
 const $ = (selector) => document.querySelector(selector);
-const { atoRateForDate, claimAmount, claimSummary, logbookAnnualSummary, normalizeRecordingMode, normalizeTripClassification, totalDistance } = TravelLogLogic;
+const { atoRateForDate, claimAmount, claimSummary, distanceSourceLabel, logbookAnnualSummary, manualDistanceReasonLabel, normalizeRecordingMode, normalizeTripClassification, totalDistance } = TravelLogLogic;
 const formatKm = (value) => `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`;
 const formatMoney = (value) => new Intl.NumberFormat(undefined, { style: "currency", currency: "AUD" }).format(value);
 const formatDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -60,7 +60,8 @@ if (!payloadText) {
       const classification = { work: "Work", personal: "Personal", unclassified: "Unclassified" }[normalizeTripClassification(trip.classification)];
       const method = { record_only: "General record", employer: "Employer reimbursement", ato_cents: "ATO cents/km", ato_logbook: "ATO logbook" }[displayedMethod] || "General record";
       const amount = claimAmount(trip, recordingMode);
-      return `<tr><td>${escapeHtml(journeyDates)}</td><td>${escapeHtml(classification)}</td><td>${escapeHtml(work)}</td><td>${escapeHtml(route)}</td><td>${escapeHtml(vehicle)}</td><td>${escapeHtml(odometer)}</td><td>${escapeHtml(formatKm(totalDistance(trip)))}</td><td>${escapeHtml(method)}</td><td>${rate ? `${escapeHtml(rate)}¢/km` : "—"}</td><td>${amount ? escapeHtml(formatMoney(amount)) : "—"}</td></tr>`;
+      const distanceEvidence = [distanceSourceLabel(trip.distanceSource), trip.distanceSource === "manual" && manualDistanceReasonLabel(trip.manualDistanceReason), trip.distanceSource === "manual" && trip.manualDistanceNote].filter(Boolean).join(" · ");
+      return `<tr><td>${escapeHtml(journeyDates)}</td><td>${escapeHtml(classification)}</td><td>${escapeHtml(work)}</td><td>${escapeHtml(route)}</td><td>${escapeHtml(vehicle)}</td><td>${escapeHtml(odometer)}</td><td>${escapeHtml(formatKm(totalDistance(trip)))}</td><td>${escapeHtml(distanceEvidence)}</td><td>${escapeHtml(method)}</td><td>${rate ? `${escapeHtml(rate)}¢/km` : "—"}</td><td>${amount ? escapeHtml(formatMoney(amount)) : "—"}</td></tr>`;
     }).join("");
   } catch {
     $("#report-content").hidden = true;

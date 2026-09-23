@@ -4,7 +4,7 @@ if (!runtimeConfig?.supabaseUrl || !runtimeConfig?.supabasePublishableKey || !ru
 const { supabaseUrl, supabasePublishableKey, distanceApiUrl } = runtimeConfig;
 const appEnvironment = runtimeConfig.environment === "staging" ? "staging" : "production";
 const privacyVersion = "2026-08-20-ato-logbook";
-const requiredSchemaVersion = 4;
+const requiredSchemaVersion = 5;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 $("#build-label").textContent = runtimeConfig.buildLabel || (appEnvironment === "staging" ? "Testing app" : "Live app");
@@ -14,7 +14,7 @@ const privacyDialog = $("#privacy-dialog");
 const accountDialog = $("#account-dialog");
 const resetPasswordDialog = $("#reset-password-dialog");
 const compatibilityDialog = $("#compatibility-dialog");
-const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, normalizeTripClassification, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
+const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, distanceSourceLabel, duplicateDistanceEvidence, filterError, filterTrips: filterTripRecords, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, manualDistanceReasonLabel, normalizeDistanceSource, normalizeRecordingMode, normalizeTripClassification, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip } = TravelLogLogic;
 
 let trips = [];
 let savedLocations = [];
@@ -69,11 +69,11 @@ function passwordError(password) {
 }
 
 function fromDatabase(row) {
-  return { id: row.id, classification: normalizeTripClassification(row.classification), date: row.trip_date, endDate: row.trip_end_date || row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", vehicleRegistration: row.vehicle_registration || "", claimMethod: row.claim_method || (Number(row.rate_cents) > 0 ? "employer" : "record_only"), rateCents: Number(row.rate_cents || 0), odometerStart: row.odometer_start === null || row.odometer_start === undefined ? "" : Number(row.odometer_start), odometerEnd: row.odometer_end === null || row.odometer_end === undefined ? "" : Number(row.odometer_end), notes: row.notes || "" };
+  return { id: row.id, classification: normalizeTripClassification(row.classification), distanceSource: normalizeDistanceSource(row.distance_source), manualDistanceReason: row.manual_distance_reason || "", manualDistanceNote: row.manual_distance_note || "", date: row.trip_date, endDate: row.trip_end_date || row.trip_date, start: row.start_address, stops: row.stops || [], end: row.end_address, distance: Number(row.distance_km), roundTrip: row.round_trip, purpose: row.purpose || "", clientProject: row.client_project || "", vehicle: row.vehicle || "", vehicleRegistration: row.vehicle_registration || "", claimMethod: row.claim_method || (Number(row.rate_cents) > 0 ? "employer" : "record_only"), rateCents: Number(row.rate_cents || 0), odometerStart: row.odometer_start === null || row.odometer_start === undefined ? "" : Number(row.odometer_start), odometerEnd: row.odometer_end === null || row.odometer_end === undefined ? "" : Number(row.odometer_end), notes: row.notes || "" };
 }
 
 function toDatabase(trip) {
-  return { id: trip.id, user_id: currentUser.id, classification: normalizeTripClassification(trip.classification), trip_date: trip.date, trip_end_date: trip.endDate || trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, vehicle_registration: trip.vehicleRegistration || null, claim_method: trip.claimMethod || (Number(trip.rateCents) > 0 ? "employer" : "record_only"), rate_cents: Number(trip.rateCents || 0), odometer_start: trip.odometerStart === "" || trip.odometerStart === undefined ? null : Number(trip.odometerStart), odometer_end: trip.odometerEnd === "" || trip.odometerEnd === undefined ? null : Number(trip.odometerEnd), notes: trip.notes };
+  return { id: trip.id, user_id: currentUser.id, classification: normalizeTripClassification(trip.classification), distance_source: normalizeDistanceSource(trip.distanceSource), manual_distance_reason: trip.distanceSource === "manual" ? trip.manualDistanceReason : null, manual_distance_note: trip.distanceSource === "manual" ? (trip.manualDistanceNote || null) : null, trip_date: trip.date, trip_end_date: trip.endDate || trip.date, start_address: trip.start, stops: trip.stops || [], end_address: trip.end, distance_km: Number(trip.distance), round_trip: trip.roundTrip, purpose: trip.purpose || null, client_project: trip.clientProject || null, vehicle: trip.vehicle || null, vehicle_registration: trip.vehicleRegistration || null, claim_method: trip.claimMethod || (Number(trip.rateCents) > 0 ? "employer" : "record_only"), rate_cents: Number(trip.rateCents || 0), odometer_start: trip.odometerStart === "" || trip.odometerStart === undefined ? null : Number(trip.odometerStart), odometer_end: trip.odometerEnd === "" || trip.odometerEnd === undefined ? null : Number(trip.odometerEnd), notes: trip.notes };
 }
 
 function fromLogbookDatabase(row) {
@@ -131,7 +131,7 @@ function render() {
     const methodLabel = { record_only: "record only", employer: "employer reimbursement", ato_cents: `ATO ${atoIncomeYear(trip.date)} cents/km`, ato_logbook: "ATO logbook" }[displayedMethod] || "record only";
     const hasOdometer = trip.odometerStart !== "" && trip.odometerEnd !== "";
     const dates = trip.endDate && trip.endDate !== trip.date ? `${displayDate(trip.date)} – ${displayDate(trip.endDate)}` : displayDate(trip.date);
-    const evidenceItems = [[trip.purpose, "purpose"], [trip.clientProject, "client/project"], [trip.vehicle || trip.vehicleRegistration, "vehicle"], [hasOdometer, "odometer readings"], [trip.notes, "notes"]].filter(([value]) => value).map(([, label]) => label);
+    const evidenceItems = [[trip.purpose, "purpose"], [trip.clientProject, "client/project"], [trip.vehicle || trip.vehicleRegistration, "vehicle"], [hasOdometer, "odometer readings"], [trip.distanceSource === "manual" && trip.manualDistanceReason, "manual-distance reason"], [trip.notes, "notes"]].filter(([value]) => value).map(([, label]) => label);
     const evidenceSummary = evidenceItems.length ? `Recorded details: ${evidenceItems.join(", ")}.` : "No optional supporting details recorded.";
     const journeyRows = [
       ["Date", dates],
@@ -141,7 +141,9 @@ function render() {
       [hasOdometer ? "Route estimate" : "One-way distance", formatKm(trip.distance)],
       ["Recorded total", formatKm(totalDistance(trip))],
       ["Journey type", trip.roundTrip ? "Round trip" : "One way"],
-      ["Distance source", hasOdometer ? "Odometer readings" : "Not recorded"]
+      ["Distance source", distanceSourceLabel(trip.distanceSource)],
+      trip.distanceSource === "manual" && ["Manual-distance reason", manualDistanceReasonLabel(trip.manualDistanceReason)],
+      trip.distanceSource === "manual" && trip.manualDistanceNote && ["Manual-distance note", trip.manualDistanceNote]
     ].filter(Boolean);
     const workRows = [["Purpose", trip.purpose], ["Client or project", trip.clientProject]].filter(([, value]) => value);
     const vehicleRows = [["Vehicle", trip.vehicle], ["Registration", trip.vehicleRegistration], hasOdometer && ["Odometer", `${trip.odometerStart}–${trip.odometerEnd} km`]].filter(Boolean).filter(([, value]) => value);
@@ -357,6 +359,21 @@ function configureTripMode(mode, trip) {
   $("#route-tip").classList.remove("error");
   if (selected !== "general") $("#trip-more-details").open = true;
   updateTripModeTip();
+  updateManualDistanceEvidence();
+}
+
+function updateManualDistanceEvidence() {
+  const manual = normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook" && normalizeDistanceSource(form.dataset.distanceSource) === "manual";
+  $("#manual-distance-evidence").hidden = !manual;
+  $("#manual-distance-reason").required = manual;
+  if (!manual) { $("#manual-distance-reason").value = ""; $("#manual-distance-note").value = ""; }
+}
+
+function setDistanceSource(source, reason = "", note = "") {
+  form.dataset.distanceSource = normalizeDistanceSource(source);
+  $("#manual-distance-reason").value = reason;
+  $("#manual-distance-note").value = note;
+  updateManualDistanceEvidence();
 }
 
 function clearTripFormMessage() {
@@ -371,6 +388,8 @@ function tripFieldForError(message) {
     [/journey end|end date/i, "#trip-end-date"],
     [/trip date|date/i, "#trip-date"],
     [/distance|odometer difference/i, "#distance"],
+    [/why the distance|manual-distance reason/i, "#manual-distance-reason"],
+    [/manual-distance note/i, "#manual-distance-note"],
     [/starting address/i, "#start-address"],
     [/ending address/i, "#end-address"],
     [/stop/i, ".stop-address"],
@@ -415,6 +434,7 @@ function openForm(trip, duplicate = false) {
   classificationCurrent.hidden = !(trip && !duplicate && originalClassification === "unclassified");
   classificationCurrent.textContent = classificationCurrent.hidden ? "" : "This historical trip is Unclassified. You may keep it that way or deliberately choose Work or Personal.";
   $("#distance").value = trip?.distance || "";
+  const distanceEvidence = duplicate ? duplicateDistanceEvidence() : { distanceSource: trip?.distanceSource || "unknown", manualDistanceReason: trip?.manualDistanceReason || "", manualDistanceNote: trip?.manualDistanceNote || "" };
   $("#purpose").value = trip?.purpose || "";
   $("#client-project").value = trip?.clientProject || "";
   $("#vehicle").value = trip?.vehicle || "";
@@ -430,11 +450,12 @@ function openForm(trip, duplicate = false) {
   $("#round-trip").checked = trip?.roundTrip || false;
   $("#notes").value = trip?.notes || "";
   configureTripMode(trip ? recordingModeForTrip(trip) : activeRecordingMode(), trip);
-  if (trip && normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook") $("#route-tip").textContent = "This trip's distance source was not stored. Review the recorded value or calculate the route again before saving.";
+  setDistanceSource(distanceEvidence.distanceSource, distanceEvidence.manualDistanceReason, distanceEvidence.manualDistanceNote);
+  if (trip && !duplicate && normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook") $("#route-tip").textContent = trip.distanceSource === "unknown" ? "This historical trip's distance source was not recorded. An unrelated edit will preserve that status." : `${distanceSourceLabel(trip.distanceSource)}. Change the distance or recalculate the route only if its source has changed.`;
   $("#trip-more-details").open = Boolean(trip) || normalizeRecordingMode(form.dataset.recordingMode) !== "general";
   const contextMessage = $("#trip-context-message");
   contextMessage.hidden = !duplicate;
-  contextMessage.textContent = duplicate ? `Trip details have been copied. The new trip uses today's local date, and odometer readings have been left blank.${originalClassification === "unclassified" ? " Choose Work or Personal before saving." : ""}` : "";
+  contextMessage.textContent = duplicate ? `Trip details have been copied. The new trip uses today's local date, odometer readings have been left blank, and its copied distance is recorded as manually entered.${originalClassification === "unclassified" ? " Choose Work or Personal before saving." : ""}` : "";
   dialog.showModal();
 }
 
@@ -443,11 +464,11 @@ function exportCsv() {
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
-  const header = ["Journey starts", "Journey ends", "Classification", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
+  const header = ["Journey starts", "Journey ends", "Classification", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Distance source", "Manual distance reason", "Manual distance note", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
   const recordingMode = activeRecordingMode();
   const rows = reportTrips.map((trip) => {
     const method = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
-    return [trip.date, trip.endDate || trip.date, normalizeTripClassification(trip.classification), trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, method, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), method === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip, recordingMode).toFixed(2), trip.notes];
+    return [trip.date, trip.endDate || trip.date, normalizeTripClassification(trip.classification), trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, method, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, normalizeDistanceSource(trip.distanceSource), trip.manualDistanceReason || "", trip.manualDistanceNote || "", trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), method === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip, recordingMode).toFixed(2), trip.notes];
   });
   const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
   downloadBlob("travel-log-report.csv", new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -563,6 +584,7 @@ async function calculateDistance() {
     const data = await response.json();
     if (!response.ok || typeof data.distanceKm !== "number") throw new Error(data.error || "Could not calculate this route.");
     $("#distance").value = data.distanceKm.toFixed(1);
+    if (normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook") setDistanceSource("route_calculated");
     $("#distance").removeAttribute("aria-invalid");
     $("#route-tip").classList.remove("error");
     $("#route-tip").textContent = normalizeRecordingMode(form.dataset.recordingMode) === "ato_logbook"
@@ -852,8 +874,17 @@ $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
 $("#add-stop-button").addEventListener("click", () => addStop());
 $("#distance").addEventListener("input", () => {
+  if (normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook") setDistanceSource("manual", $("#manual-distance-reason").value, $("#manual-distance-note").value);
   $("#route-tip").classList.remove("error");
   $("#route-tip").textContent = "Manual distance entered. Review the one-way kilometres before saving.";
+});
+form.addEventListener("input", (event) => {
+  if (["start-address", "end-address"].includes(event.target.id) || event.target.classList?.contains("stop-address")) {
+    if ($("#distance").value && normalizeRecordingMode(form.dataset.recordingMode) !== "ato_logbook" && form.dataset.distanceSource === "route_calculated") {
+      setDistanceSource("manual");
+      $("#route-tip").textContent = "The route details changed after calculation. Review the distance and explain the manual value, or calculate the route again.";
+    }
+  }
 });
 $("#trip-date").addEventListener("change", (event) => {
   if ($("#trip-end-date").value === form.dataset.startDate) $("#trip-end-date").value = event.currentTarget.value;
@@ -876,7 +907,8 @@ form.addEventListener("submit", async (event) => {
   const selectedClassification = form.querySelector('input[name="trip-classification"]:checked')?.value;
   const effectiveClassification = selectedClassification || form.dataset.originalClassification || "unclassified";
   const claimMethod = effectiveClassification === "personal" ? "record_only" : (recordingMode === "general" ? (employerRate > 0 ? "employer" : "record_only") : recordingMode);
-  const trip = { id, classification: effectiveClassification, date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
+  const distanceSource = recordingMode === "ato_logbook" ? "odometer" : normalizeDistanceSource(form.dataset.distanceSource);
+  const trip = { id, classification: effectiveClassification, distanceSource, manualDistanceReason: distanceSource === "manual" ? $("#manual-distance-reason").value : "", manualDistanceNote: distanceSource === "manual" ? $("#manual-distance-note").value.trim() : "", date: $("#trip-date").value, endDate: $("#trip-end-date").value, distance: Number($("#distance").value), purpose: $("#purpose").value, clientProject: $("#client-project").value.trim(), vehicle: $("#vehicle").value.trim(), vehicleRegistration: $("#vehicle-registration").value.trim().toUpperCase(), claimMethod, rateCents: claimMethod === "ato_cents" ? Number(atoRateForDate($("#trip-date").value) || 0) : (claimMethod === "employer" ? Number($("#rate-cents").value || 0) : 0), odometerStart: $("#odometer-start").value, odometerEnd: $("#odometer-end").value, start: $("#start-address").value.trim(), stops, end: $("#end-address").value.trim(), roundTrip: $("#round-trip").checked, notes: $("#notes").value.trim() };
   const validationError = validateTrip(trip, { requireClassified: !$("#trip-id").value });
   if (validationError) return showTripFormError(validationError);
   if (claimMethod === "ato_logbook" && !logbookPeriods.some((period) => period.vehicleRegistration.toUpperCase() === trip.vehicleRegistration.toUpperCase() && trip.date >= period.startDate && trip.endDate <= period.endDate)) return showTripFormError("Create a matching 12-week logbook period for this registration and journey dates in Account and privacy before saving an ATO logbook trip.", $("#vehicle-registration"));

@@ -42,6 +42,11 @@
   }
   function totalDistance(trip) { return odometerDistance(trip) || number(trip.distance) * (trip.roundTrip ? 2 : 1); }
   function normalizeTripClassification(value) { return ["work", "personal", "unclassified"].includes(value) ? value : "unclassified"; }
+  function normalizeDistanceSource(value) { return ["route_calculated", "manual", "odometer", "unknown"].includes(value) ? value : "unknown"; }
+  function normalizeManualDistanceReason(value) { return ["route_unavailable", "actual_route_differed", "employer_provided", "copied_from_trip", "corrected_record", "other"].includes(value) ? value : ""; }
+  function distanceSourceLabel(value) { return { route_calculated: "Route calculated", manual: "Entered manually", odometer: "From odometer", unknown: "Not recorded" }[normalizeDistanceSource(value)]; }
+  function manualDistanceReasonLabel(value) { return { route_unavailable: "Route calculation unavailable", actual_route_differed: "Actual route differed", employer_provided: "Employer-provided distance", copied_from_trip: "Copied from another trip", corrected_record: "Corrected from another record", other: "Other" }[normalizeManualDistanceReason(value)] || ""; }
+  function duplicateDistanceEvidence() { return { distanceSource: "manual", manualDistanceReason: "copied_from_trip", manualDistanceNote: "" }; }
   function isWorkTrip(trip) { return normalizeTripClassification(trip?.classification) === "work"; }
   function normalizeRecordingMode(mode) { return ["general", "ato_cents", "ato_logbook"].includes(mode) ? mode : "general"; }
   function recordingModeForTrip(trip) {
@@ -141,6 +146,11 @@
     if (!isCalendarDate(date)) return "Enter a valid trip date.";
     if (trip.endDate && (!isCalendarDate(trip.endDate) || trip.endDate < date)) return "Journey end date cannot be before its start date.";
     if (!Number.isFinite(Number(trip.distance)) || Number(trip.distance) <= 0 || Number(trip.distance) > 100000) return "Distance must be greater than 0 and no more than 100,000 km.";
+    const distanceSource = normalizeDistanceSource(trip.distanceSource);
+    if (trip.distanceSource && distanceSource !== trip.distanceSource) return "Choose a valid distance source.";
+    if (distanceSource === "manual" && !normalizeManualDistanceReason(trip.manualDistanceReason)) return "Choose why the distance was entered manually.";
+    if (distanceSource !== "manual" && (trip.manualDistanceReason || trip.manualDistanceNote)) return "Manual-distance evidence can only be saved with a manually entered distance.";
+    if (String(trip.manualDistanceNote || "").length > 300) return "Manual-distance note must be no more than 300 characters.";
     if (typeof trip.start !== "string" || trip.start.trim().length < 3 || trip.start.length > 250) return "Starting address must be between 3 and 250 characters.";
     if (typeof trip.end !== "string" || trip.end.trim().length < 3 || trip.end.length > 250) return "Ending address must be between 3 and 250 characters.";
     if (!Array.isArray(trip.stops) || trip.stops.length > 8 || trip.stops.some((stop) => typeof stop !== "string" || stop.trim().length < 3 || stop.length > 250)) return "Use no more than 8 valid stop addresses.";
@@ -188,7 +198,7 @@
     return `"${text.replaceAll('"', '""')}"`;
   }
 
-  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, filterError, filterTrips, isWorkTrip, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, normalizeRecordingMode, normalizeTripClassification, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
+  const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, distanceSourceLabel, duplicateDistanceEvidence, filterError, filterTrips, isWorkTrip, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, manualDistanceReasonLabel, normalizeDistanceSource, normalizeManualDistanceReason, normalizeRecordingMode, normalizeTripClassification, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

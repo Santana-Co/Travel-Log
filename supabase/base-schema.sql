@@ -12,6 +12,9 @@ create table if not exists public.trips (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   classification text not null default 'unclassified' constraint trips_classification_valid check (classification in ('work', 'personal', 'unclassified')),
+  distance_source text not null default 'unknown' constraint trips_distance_source_valid check (distance_source in ('route_calculated', 'manual', 'odometer', 'unknown')),
+  manual_distance_reason text constraint trips_manual_distance_reason_valid check (manual_distance_reason is null or manual_distance_reason in ('route_unavailable', 'actual_route_differed', 'employer_provided', 'copied_from_trip', 'corrected_record', 'other')),
+  manual_distance_note text constraint trips_manual_distance_note_length check (manual_distance_note is null or char_length(manual_distance_note) <= 300),
   trip_date date not null,
   start_address text not null,
   stops jsonb not null default '[]'::jsonb check (jsonb_typeof(stops) = 'array'),
@@ -21,6 +24,12 @@ create table if not exists public.trips (
   notes text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+alter table public.trips drop constraint if exists trips_manual_distance_evidence_consistent;
+alter table public.trips add constraint trips_manual_distance_evidence_consistent check (
+  (distance_source = 'manual' and manual_distance_reason is not null)
+  or (distance_source <> 'manual' and manual_distance_reason is null and manual_distance_note is null)
 );
 
 alter table public.profiles enable row level security;

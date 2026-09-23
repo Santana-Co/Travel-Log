@@ -13,12 +13,26 @@
     recording_mode: new URLSearchParams(location.search).get("mode") || "general",
   };
   const state = {
-    schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 4),
+    schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 5),
     reads: {},
+    logbookPeriods: [{
+      id: "00000000-0000-4000-8000-000000000020",
+      user_id: user.id,
+      vehicle_registration: "ODO123",
+      vehicle_description: "Synthetic odometer vehicle",
+      engine_capacity: null,
+      start_date: "2026-07-01",
+      end_date: "2026-09-22",
+      opening_odometer: 900,
+      closing_odometer: 2000,
+    }],
     trips: [{
       id: "00000000-0000-4000-8000-000000000010",
       user_id: user.id,
       classification: "unclassified",
+      distance_source: "unknown",
+      manual_distance_reason: null,
+      manual_distance_note: null,
       trip_date: "2026-07-14",
       trip_end_date: "2026-07-14",
       start_address: "Synthetic Depot",
@@ -64,7 +78,7 @@
     async execute() {
       if (this.operation === "select") {
         state.reads[this.table] = (state.reads[this.table] || 0) + 1;
-        const rows = this.table === "profiles" ? [profile] : this.table === "trips" ? state.trips : [];
+        const rows = this.table === "profiles" ? [profile] : this.table === "trips" ? state.trips : this.table === "logbook_periods" ? state.logbookPeriods : [];
         const selected = rows.filter((row) => this.matches(row)).map(clone);
         return { data: this.singleRow ? selected[0] : selected, error: null };
       }

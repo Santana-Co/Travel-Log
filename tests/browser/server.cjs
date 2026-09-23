@@ -16,7 +16,7 @@ const server = http.createServer(async (request, response) => {
     }
     if (pathname === "/route") {
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ error: "Synthetic route unavailable; enter the distance manually." }));
+      response.end(JSON.stringify({ distanceKm: 18.4 }));
       return;
     }
 

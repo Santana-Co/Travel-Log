@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document describes the schema-v4 classification release candidate built on current `main`. Production and staging remain on version 3 until the separately approved database-first release; this document does not claim that version 4 is deployed. The routing Worker is separately maintained; only its checked-in client contract and repository operational guidance can be verified here.
+This document describes the schema-v5 distance-provenance release candidate. Production and staging currently operate on version 4 until a separately approved database-first release; this document does not claim that version 5 is deployed. The routing Worker is separately maintained; only its checked-in client contract and repository operational guidance can be verified here.
 
 ## System overview
 
@@ -64,7 +64,7 @@ sequenceDiagram
     end
 ```
 
-The repository release target and browser minimum are **4**. Deployed production and staging remain at **3** until release execution. `app.js` rejects only when the returned version is invalid or lower than the minimum; future versions greater than 4 remain accepted. Schema 4 must be applied and verified before this browser is deployed.
+The repository release target and browser minimum are **5**. Deployed production and staging remain at **4** until release execution. `app.js` rejects only when the returned version is invalid or lower than the minimum; future versions greater than 5 remain accepted. Schema 5 must be applied and verified before this browser is deployed.
 
 ## Conceptual data model
 
@@ -72,7 +72,7 @@ The repository release target and browser minimum are **4**. Deployed production
 |---|---|---|
 | `auth.users` | Supabase identity | Managed by Supabase Auth |
 | `profiles` | Name, privacy acceptance, theme, recording mode | `id` equals authenticated user ID |
-| `trips` | Explicit intent classification, calendar dates, ordered route, distance, purpose/project, claim/rate, vehicle/odometer, notes | `user_id`; classification is constrained to `work`, `personal`, or `unclassified`; `stops` is canonical JSONB ordered string array |
+| `trips` | Intent classification, calendar dates, ordered route, distance and current provenance, purpose/project, claim/rate, vehicle/odometer, notes | `user_id`; classification and provenance are constrained; manual distance requires a reason; `stops` is canonical JSONB ordered string array |
 | `saved_locations` | Private label/address suggestions | `user_id` |
 | `logbook_periods` | Representative vehicle logbook periods | `user_id` |
 | `logbook_income_years` | Annual odometer records | `user_id`; composite foreign key enforces same-owner logbook link |
@@ -91,7 +91,7 @@ The live staging integration suite uses two synthetic authenticated users and co
 1. `openForm()` prepares a new, duplicate, or existing trip. New general trips initially show the essential date, route, and distance path; optional evidence/reporting fields are progressively disclosed. Existing, duplicated, and mode-specific trips reveal their relevant detail fields immediately.
 2. New and duplicate dates use device-local `tripCalendarDates()` defaults; edit retains stored dates.
 3. New/duplicated trips require an explicit Work or Personal choice. Historical rows migrate to Unclassified and remain editable without forced reclassification.
-4. The user supplies ordered addresses/stops, purpose, distance or odometers, and optional reporting fields.
+4. The user supplies ordered addresses/stops, purpose, distance or odometers, and optional reporting fields. A route response records `route_calculated`, direct distance entry records `manual` with a reason, and logbook odometers record `odometer`.
 5. `validateTrip()` checks domain rules without converting calendar dates through UTC ISO strings. Trip-form failures are shown inline and focus the first invalid field without discarding entered values.
 6. `toDatabase()` maps to database columns and includes the signed-in user ID.
 7. PostgREST performs insert/update/delete; RLS and constraints enforce server-side ownership and integrity.
@@ -99,9 +99,9 @@ The live staging integration suite uses two synthetic authenticated users and co
 
 Classification records the user's stated trip intent; it does not establish tax deductibility, ATO eligibility, or employer reimbursement. General displayed-distance totals include the filtered set and are labelled accordingly. Financial/reimbursement estimates and representative-logbook business kilometres include only explicitly Work trips; Personal and Unclassified trips remain visible and exportable but are conservatively excluded.
 
-Trip cards prioritise the date, total distance, journey direction, and round-trip state. A native details disclosure groups existing journey, work, vehicle, and additional record fields while omitting empty optional groups. Odometer-backed distance is identifiable from stored readings. For other trips, the current schema stores the distance but not whether it was entered manually or produced by the route service, so the UI reports that provenance as not recorded.
+Trip cards prioritise the date, total distance, journey direction, and round-trip state. A native details disclosure shows persisted current distance provenance as Route calculated, Entered manually, From odometer, or Not recorded. Manual records include the constrained reason and optional short note. Schema-v5 migration marks every pre-existing row `unknown`; it never guesses history from old field combinations.
 
-Edits overwrite the row. There is no trip-change or manual-distance audit history.
+Unrelated edits preserve provenance. Recalculation, manual replacement, or odometer recording deliberately replaces the current provenance. Duplication conservatively records the copied value as manual with reason `copied_from_trip`; it does not claim a new route calculation or copy stale evidence. Edits still overwrite the row: this is current provenance, not immutable trip-change history.
 
 ## Distance and address flows
 
@@ -135,9 +135,9 @@ These are estimates and record-keeping aids, not personalised tax advice.
 
 ## Reporting and exports
 
-- CSV is generated from the active filtered data and protects cells against spreadsheet-formula execution.
-- JSON account export includes the profile and all four related resource collections plus a UTC generation timestamp.
-- Print/PDF transfers a report payload through same-origin `sessionStorage`; `report.html` consumes/removes it and relies on browser Print / Save PDF.
+- CSV includes stable provenance/reason values and protects cells against spreadsheet-formula execution.
+- JSON account export includes current provenance through the trip model, the profile and all four related resource collections plus a UTC generation timestamp.
+- Print/PDF shows human-readable distance evidence; its same-origin `sessionStorage` payload is consumed/removed by `report.html`.
 - Google Maps route links provide external route viewing; they do not persist calculated distance.
 
 Downloads and printed files leave Travel Log's control. Automated browser-level report reconciliation remains limited.
@@ -154,7 +154,7 @@ Downloads and printed files leave Travel Log's control. Automated browser-level 
 
 The staging builder refuses production endpoints, privileged-looking credentials, non-HTTPS URLs, and missing configuration. A successful build or preview does not by itself prove the staging Worker is active; that remains an operational verification gap.
 
-`supabase/migrations.json` owns migration order. The schema-v3 release reconciled production drift, corrected `delete_my_account()`, and aligned repository, staging, production, and the browser minimum at version 3. Production migration work follows preflight, recovery-point, encrypted connection, staging-first, post-migration verification, and synthetic-test discipline.
+`supabase/migrations.json` owns migration order. Production and staging are verified at schema 4. Schema 5 is additive and database-first: old schema-4 clients ignore the new defaulted columns, while the schema-5 browser must wait until each database is migrated. Production migration work follows preflight, recovery-point, encrypted connection, staging-first, post-migration verification, and synthetic-test discipline.
 
 A private logical production backup was checksum-verified and restored to disposable PostgreSQL 17; application schema/data and reconciliation behaviour were validated. Recovery remains **PARTIALLY VERIFIED** because managed Supabase Auth, Storage, Vault, and related runtime were not fully reproduced. Restore-to-clean-database is preferred over an ambiguous in-place reverse migration.
 
@@ -168,7 +168,7 @@ A private logical production backup was checksum-verified and restored to dispos
 - Browser input is untrusted. Supabase RLS/constraints are the data security boundary.
 - Route addresses cross the Worker/provider boundary; report payloads briefly enter `sessionStorage`; exports leave application control.
 
-The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration boundaries, and blocks non-loopback requests. It covers authenticated startup, schema compatibility, explicit classification, classification filtering, conservative totals, CSV/JSON/print classification output, the essential-first trip flow and validation recovery at desktop/mobile widths, trip CRUD/duplication, and Brisbane-local date behaviour. Broader auth, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
+The browser baseline serves real application assets, substitutes deterministic synthetic Supabase/configuration/routing boundaries, and blocks unexpected non-loopback requests. It covers authenticated startup, schema compatibility, classification, current distance provenance, conservative totals, CSV/JSON/print output, the essential-first trip flow at desktop/mobile widths, CRUD/duplication, and Brisbane-local dates. Broader auth, accessibility, and multi-browser coverage remains outside this narrow baseline. There is no lint/type-check command, production error monitor, or automated application/routing/schema health check.
 
 ## Calendar dates and timestamps
 

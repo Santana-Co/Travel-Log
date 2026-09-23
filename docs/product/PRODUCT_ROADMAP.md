@@ -23,17 +23,17 @@ Exit criteria:
 
 ## Stage 1 — Build: dependable core web workflow
 
-Implemented: authenticated trip create/read/update/delete and duplication; local calendar dates; ordered stops; addresses and saved locations; manual or routed distance; round trips; purpose/project/notes; per-trip vehicle fields; validation; search/date/client filters; totals. Explicit Work/Personal/Unclassified classification is implemented in the schema-v4 release candidate but is not yet deployed.
+Implemented: authenticated trip create/read/update/delete and duplication; local calendar dates; ordered stops; addresses and saved locations; manual or routed distance; round trips; purpose/project/notes; per-trip vehicle fields; validation; search/date/client/classification filters; totals; and deployed Work/Personal/Unclassified classification. Schema-v5 work adds persisted current distance provenance and manual evidence.
 
-Missing or incomplete: classification release execution, journey time, manual-distance correction reasons/audit evidence, selectable sorting, dedicated financial-year filtering, reusable vehicle profiles, and broader automated mobile-width workflow coverage.
+Missing or incomplete: schema-v5 release execution, journey time, immutable correction history, selectable sorting, dedicated financial-year filtering, reusable vehicle profiles, and broader automated mobile-width workflow coverage.
 
 Exit: reliable persistence and validation, protected destructive actions, strong desktop/mobile behaviour, and trustworthy primary trip workflows.
 
 ## Stage 2 — Build: reporting and evidence
 
-Implemented: filtered CSV, JSON account export, printable/PDF-oriented report, calculation summaries, and formula-safe CSV cells. The schema-v4 release candidate adds classification consistently across these outputs and excludes Personal/Unclassified trips from Work estimates.
+Implemented: filtered CSV, JSON account export, printable/PDF-oriented report, calculation summaries, formula-safe CSV cells, consistent classification output, and conservative Work-only estimates. Schema-v5 work adds machine-readable provenance to structured exports and human-readable evidence to reports.
 
-Missing or incomplete: deployment of classification-aware totals/outputs, richer grouping, audit history, and broader reconciliation across screen, CSV, JSON, and print output.
+Missing or incomplete: schema-v5 release execution, richer grouping, immutable audit history, and broader reconciliation across screen, CSV, JSON, and print output.
 
 Exit: understandable accountant/employer outputs whose totals and evidence can be reproduced and tested.
 
@@ -49,7 +49,7 @@ Exit: versioned and sourced rules, stable historical calculations, and clear exp
 
 Improve information architecture, entry speed, onboarding, responsive behaviour, accessibility, keyboard use, error recovery, confirmations/undo, visual consistency, and performance. A new user should create a correct first trip and understand totals without documentation.
 
-In progress: the first-trip form prioritises date, start, destination, distance, and save; progressively reveals optional detail; and provides inline validation recovery. Recorded-trip cards now prioritise journey direction, date, total distance, and round-trip state, with grouped supporting details on demand. Persisted distance provenance, broader onboarding, accessibility, reporting, and polish work remain.
+In progress: the first-trip form prioritises date, start, destination, distance, and save; progressively reveals optional detail; and provides inline validation recovery. Recorded-trip cards prioritise journey direction, date, total distance, and round-trip state, with grouped details. Persisted current distance provenance is implemented in the schema-v5 release candidate; immutable history, broader onboarding, accessibility, reporting, and polish remain.
 
 ## Stage 5 — Refine the SaaS foundation
 
