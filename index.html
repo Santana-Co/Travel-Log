@@ -99,6 +99,10 @@
             <label class="full-width">Starting location<input id="start-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. 12 Smith Street, Brisbane" required /></label>
             <label class="full-width">Destination<input id="end-address" type="text" list="saved-addresses" minlength="3" maxlength="250" placeholder="e.g. Client office, Gold Coast" required /></label>
             <label id="distance-field" class="full-width"><span id="distance-field-label">One-way distance (km)</span><span class="distance-input"><input id="distance" type="number" min="0.1" max="100000" step="0.1" placeholder="Enter manually or calculate" required /><button type="button" id="calculate-distance" class="button secondary">Calculate route</button></span></label>
+            <div id="manual-distance-evidence" class="manual-distance-evidence full-width" hidden>
+              <label>Why was this distance entered manually?<select id="manual-distance-reason"><option value="">Choose a reason</option><option value="route_unavailable">Route calculation unavailable</option><option value="actual_route_differed">Actual route differed</option><option value="employer_provided">Employer-provided distance</option><option value="copied_from_trip">Copied from another trip</option><option value="corrected_record">Corrected from another record</option><option value="other">Other</option></select></label>
+              <label>Additional distance note (optional)<input id="manual-distance-note" type="text" maxlength="300" placeholder="Brief supporting context" /></label>
+            </div>
           </div>
           <p id="route-tip" class="route-tip" role="status">Enter the start and destination, then calculate the route—or type the one-way distance manually.</p>
         </section>

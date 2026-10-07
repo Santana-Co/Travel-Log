@@ -8,6 +8,7 @@ const root = path.join(__dirname, "..");
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const migration = fs.readFileSync(path.join(root, "supabase", "schema-version-migration.sql"), "utf8");
 const classificationMigration = fs.readFileSync(path.join(root, "supabase", "trip-classification-migration.sql"), "utf8");
+const distanceProvenanceMigration = fs.readFileSync(path.join(root, "supabase", "distance-provenance-migration.sql"), "utf8");
 const reconciliationMigration = fs.readFileSync(
   path.join(root, "supabase", "production-schema-reconciliation-migration.sql"),
   "utf8",
@@ -16,27 +17,27 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "supabase", "migrati
 
 test("repository schema and browser minimum versions form a valid compatibility contract", () => {
   const browserVersion = app.match(/const requiredSchemaVersion = (\d+);/);
-  const databaseVersion = classificationMigration.match(/values\s*\(\s*true\s*,\s*(\d+)\s*\)/i);
+  const databaseVersion = distanceProvenanceMigration.match(/values\s*\(\s*true\s*,\s*(\d+)\s*\)/i);
   assert.ok(browserVersion, "requiredSchemaVersion is missing from app.js");
   assert.ok(databaseVersion, "schema version is missing from the migration");
   const browserMinimum = Number(browserVersion[1]);
   const repositoryVersion = Number(databaseVersion[1]);
   const isValidContract = (minimumVersion) => minimumVersion <= repositoryVersion;
 
-  assert.equal(browserMinimum, 4);
+  assert.equal(browserMinimum, 5);
   assert.equal(repositoryVersion, manifest.schemaVersion);
   assert.ok(isValidContract(browserMinimum));
   assert.equal(isValidContract(repositoryVersion + 1), false);
 });
 
-test("browser enforces schema version 4 as a fail-closed minimum", async () => {
+test("browser enforces schema version 5 as a fail-closed minimum", async () => {
   const browserMinimum = Number(app.match(/const requiredSchemaVersion = (\d+);/)[1]);
   const compatibilitySource = app.slice(
     app.indexOf("async function ensureSchemaCompatible"),
     app.indexOf("function showCompatibilityIssue"),
   );
   const context = {
-    db: { rpc: async () => ({ data: 4, error: null }) },
+    db: { rpc: async () => ({ data: 5, error: null }) },
   };
   vm.runInNewContext(
     `const requiredSchemaVersion = ${browserMinimum};\n${compatibilitySource}\nglobalThis.ensureSchemaCompatible = ensureSchemaCompatible;`,
@@ -48,9 +49,9 @@ test("browser enforces schema version 4 as a fail-closed minimum", async () => {
     return context.ensureSchemaCompatible();
   };
 
-  assert.equal((await check(3)).compatible, false);
-  assert.equal((await check(4)).compatible, true);
+  assert.equal((await check(4)).compatible, false);
   assert.equal((await check(5)).compatible, true);
+  assert.equal((await check(6)).compatible, true);
   assert.equal((await check(undefined)).compatible, false);
   assert.equal((await check("invalid")).compatible, false);
   assert.equal((await check(null, new Error("RPC unavailable"))).compatible, false);
@@ -70,11 +71,28 @@ test("classification migration is additive, constrained, and preserves ownership
   assert.match(classificationMigration, /commit;/i);
 });
 
+test("distance provenance migration is additive, constrained, and does not invent history", () => {
+  assert.match(distanceProvenanceMigration, /begin;/i);
+  assert.match(distanceProvenanceMigration, /pg_advisory_xact_lock/i);
+  assert.match(distanceProvenanceMigration, /current_schema_version not in \(4, 5\)/i);
+  assert.match(distanceProvenanceMigration, /add column if not exists distance_source text/i);
+  assert.match(distanceProvenanceMigration, /set distance_source = 'unknown'/i);
+  assert.match(distanceProvenanceMigration, /distance_source in \('route_calculated', 'manual', 'odometer', 'unknown'\)/i);
+  assert.match(distanceProvenanceMigration, /manual_distance_reason in \('route_unavailable', 'actual_route_differed', 'employer_provided', 'copied_from_trip', 'corrected_record', 'other'\)/i);
+  assert.match(distanceProvenanceMigration, /distance_source = 'manual' and manual_distance_reason is not null/i);
+  assert.match(distanceProvenanceMigration, /values \(true, 5\)/i);
+  assert.doesNotMatch(distanceProvenanceMigration, /set distance_source\s*=\s*case/i);
+  assert.doesNotMatch(distanceProvenanceMigration, /(?:delete\s+from|truncate(?:\s+table)?)\s+public\.trips/i);
+  assert.doesNotMatch(distanceProvenanceMigration, /\b(?:create|alter|drop)\s+policy\b/i);
+  assert.doesNotMatch(distanceProvenanceMigration, /set\s+user_id\s*=/i);
+  assert.match(distanceProvenanceMigration, /commit;/i);
+});
+
 test("every Supabase migration is included once in release order", () => {
   const files = fs.readdirSync(path.join(root, "supabase")).filter((name) => name.endsWith(".sql")).sort();
   assert.deepEqual([...manifest.releaseOrder].sort(), files);
   assert.equal(new Set(manifest.releaseOrder).size, manifest.releaseOrder.length);
-  assert.equal(manifest.releaseOrder.at(-1), "trip-classification-migration.sql");
+  assert.equal(manifest.releaseOrder.at(-1), "distance-provenance-migration.sql");
 });
 
 test("production reconciliation is fail-closed and preserves schema version 2", () => {

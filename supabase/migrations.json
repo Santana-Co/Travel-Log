@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "releaseOrder": [
     "base-schema.sql",
     "production-schema-reconciliation-migration.sql",
@@ -13,6 +13,7 @@
     "account-reauthentication-migration.sql",
     "account-deletion-time-variable-migration.sql",
     "schema-version-migration.sql",
-    "trip-classification-migration.sql"
+    "trip-classification-migration.sql",
+    "distance-provenance-migration.sql"
   ]
 }

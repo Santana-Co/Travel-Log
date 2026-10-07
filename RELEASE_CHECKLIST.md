@@ -32,4 +32,6 @@ Use this checklist for every production release.
 
 7. Confirm the returned database version equals `migrations.json.schemaVersion` and is greater than or equal to the browser's `requiredSchemaVersion`, then test the pull request and merge it.
 
+For schema 5, additionally verify historical rows are `distance_source = 'unknown'` without inferred reasons, new route/manual/odometer records persist their actual method, manual rows have a valid reason, and RLS/ownership policies are unchanged.
+
 If the database update is missing or temporarily unreachable, the app shows a safe compatibility message instead of attempting queries against the wrong schema. Existing records are not changed by that screen.

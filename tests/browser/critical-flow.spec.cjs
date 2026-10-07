@@ -10,6 +10,9 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === "127.0.0.1") await route.continue();
+    else if (url.hostname === "travel-log-distance-api.jfsantana0691.workers.dev" && url.pathname === "/distance") {
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ distanceKm: 18.4 }) });
+    }
     else {
       page.externalRequests.push(route.request().url());
       await route.abort("blockedbyclient");
@@ -74,7 +77,7 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
 
   await page.locator("#end-address").fill("Synthetic Brisbane End");
   await page.getByRole("button", { name: "Calculate route" }).click();
-  await expect(page.locator("#route-tip")).toContainText("enter the one-way distance manually");
+  await expect(page.locator("#route-tip")).toContainText("Distance calculated");
   await expect(page.locator("#start-address")).toHaveValue("Preserved synthetic start");
   await expect(page.locator("#end-address")).toHaveValue("Synthetic Brisbane End");
 
@@ -84,6 +87,9 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await page.locator("#trip-end-date").fill(storedEndDate);
   await page.locator("#distance").fill("24.5");
   await expect(page.locator("#route-tip")).toContainText("Manual distance entered");
+  await expect(page.locator("#manual-distance-evidence")).toBeVisible();
+  await page.locator("#manual-distance-reason").selectOption("actual_route_differed");
+  await page.locator("#manual-distance-note").fill("Synthetic road closure");
   await page.locator("#purpose").selectOption({ label: "Client visit" });
   await page.locator("#client-project").fill("Synthetic client alpha");
   await page.locator("#start-address").fill("Synthetic Brisbane Start");
@@ -98,6 +104,10 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(createdTrip).toContainText("24.5 km");
   await expect(createdTrip).toContainText("Created by browser fixture");
   await expect(createdTrip.locator(".trip-classification")).toHaveText("Work");
+  await createdTrip.locator(".trip-record-details summary").click();
+  await expect(createdTrip.getByText("Entered manually", { exact: true })).toBeVisible();
+  await expect(createdTrip.getByText("Actual route differed", { exact: true })).toBeVisible();
+  await expect(createdTrip.getByText("Synthetic road closure", { exact: true })).toBeVisible();
 
   await createdTrip.getByRole("button", { name: "Edit" }).click();
   await expect(page.locator("#trip-date")).toHaveValue(storedStartDate);
@@ -116,6 +126,7 @@ test("authenticated trip CRUD and duplication use real browser orchestration", a
   await expect(page.locator("#client-project")).toHaveValue("Synthetic client updated");
   await expect(page.locator("#start-address")).toHaveValue("Synthetic Brisbane Start");
   await expect(page.getByLabel("Work", { exact: true })).toBeChecked();
+  await expect(page.locator("#manual-distance-reason")).toHaveValue("copied_from_trip");
   await page.getByRole("button", { name: "Save trip" }).click();
   await expect(page.locator("article.trip", { hasText: "Synthetic client updated" })).toHaveCount(2);
 
@@ -159,6 +170,57 @@ test("Personal filtering and Unclassified duplication require deliberate intent"
   expect(page.externalRequests).toEqual([]);
 });
 
+test("route calculation and odometer recording persist the method that established distance", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "+ Add trip" }).click();
+  await page.getByLabel("Work", { exact: true }).check();
+  await page.locator("#start-address").fill("Synthetic route start");
+  await page.locator("#end-address").fill("Synthetic route end");
+  await page.getByRole("button", { name: "Calculate route" }).click();
+  await expect(page.locator("#distance")).toHaveValue("18.4");
+  await expect(page.locator("#manual-distance-evidence")).toBeHidden();
+  await page.getByRole("button", { name: "Save trip" }).click();
+  const routeTrip = page.locator("article.trip", { hasText: "Synthetic route start" });
+  await routeTrip.locator(".trip-record-details summary").click();
+  await expect(routeTrip.getByText("Route calculated", { exact: true })).toBeVisible();
+
+  await routeTrip.getByRole("button", { name: "Edit" }).click();
+  await page.locator("#client-project").fill("Unrelated edit");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  const editedRouteTrip = page.locator("article.trip", { hasText: "Unrelated edit" });
+  await editedRouteTrip.locator(".trip-record-details summary").click();
+  await expect(editedRouteTrip.getByText("Route calculated", { exact: true })).toBeVisible();
+
+  await editedRouteTrip.getByRole("button", { name: "Edit" }).click();
+  await page.locator("#distance").fill("19.2");
+  await page.locator("#manual-distance-reason").selectOption("corrected_record");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  const manualTrip = page.locator("article.trip", { hasText: "Unrelated edit" });
+  await manualTrip.locator(".trip-record-details summary").click();
+  await expect(manualTrip.getByText("Entered manually", { exact: true })).toBeVisible();
+  await expect(manualTrip.getByText("Corrected from another record", { exact: true })).toBeVisible();
+  expect(page.externalRequests).toEqual([]);
+
+  await page.goto("/?mode=ato_logbook");
+  await page.getByRole("button", { name: "+ Add trip" }).click();
+  await page.getByLabel("Work", { exact: true }).check();
+  await page.locator("#start-address").fill("Synthetic odometer start");
+  await page.locator("#end-address").fill("Synthetic odometer end");
+  await page.locator("#distance").fill("10");
+  await page.locator("#purpose").selectOption({ label: "Client visit" });
+  await page.locator("#vehicle-registration").fill("ODO123");
+  await page.locator("#odometer-start").fill("1000");
+  await page.locator("#odometer-end").fill("1012");
+  await page.getByRole("button", { name: "Save trip" }).click();
+  await expect(page.locator("#trip-form-message")).toHaveText("");
+  await expect(page.locator("#trip-dialog")).not.toBeVisible();
+  const odometerTrip = page.locator("article.trip", { hasText: "Synthetic odometer start" });
+  await odometerTrip.locator(".trip-record-details summary").click();
+  await expect(odometerTrip.getByText("From odometer", { exact: true })).toBeVisible();
+  await expect(odometerTrip.locator(".trip-distance")).toContainText("12 km");
+  expect(page.externalRequests).toEqual([]);
+});
+
 test("CSV, account JSON, and printable reports represent Unclassified trips honestly", async ({ page, context }) => {
   await page.goto("/");
   await expect(page.locator("#total-distance")).toHaveText("25 km");
@@ -170,6 +232,8 @@ test("CSV, account JSON, and printable reports represent Unclassified trips hone
   const csvText = await readFile(await csv.path(), "utf8");
   expect(csvText).toContain('"Classification"');
   expect(csvText).toContain('"unclassified"');
+  expect(csvText).toContain('"Distance source"');
+  expect(csvText).toContain('"unknown"');
 
   await page.getByRole("button", { name: "Open account settings" }).click();
   const jsonDownload = page.waitForEvent("download");
@@ -177,6 +241,7 @@ test("CSV, account JSON, and printable reports represent Unclassified trips hone
   const json = await jsonDownload;
   const accountExport = JSON.parse(await readFile(await json.path(), "utf8"));
   expect(accountExport.trips[0].classification).toBe("unclassified");
+  expect(accountExport.trips[0].distanceSource).toBe("unknown");
   await page.locator("#close-account").click();
 
   const reportPagePromise = context.waitForEvent("page");
@@ -184,7 +249,9 @@ test("CSV, account JSON, and printable reports represent Unclassified trips hone
   const reportPage = await reportPagePromise;
   await reportPage.waitForLoadState();
   await expect(reportPage.getByRole("columnheader", { name: "Trip type" })).toBeVisible();
+  await expect(reportPage.getByRole("columnheader", { name: "Distance evidence" })).toBeVisible();
   await expect(reportPage.getByRole("cell", { name: "Unclassified" })).toBeVisible();
+  await expect(reportPage.getByRole("cell", { name: "Not recorded" })).toBeVisible();
   await reportPage.close();
   expect(page.externalRequests).toEqual([]);
 });
@@ -200,6 +267,8 @@ test("first-trip essentials remain usable at a representative mobile width", asy
   await expect(page.locator("#start-address")).toBeVisible();
   await expect(page.locator("#end-address")).toBeVisible();
   await expect(page.locator("#distance")).toBeVisible();
+  await page.locator("#distance").fill("12");
+  await expect(page.locator("#manual-distance-evidence")).toBeVisible();
   await expect(page.getByRole("button", { name: "Calculate route" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save trip" })).toBeVisible();
   await expect(page.locator("#purpose")).not.toBeVisible();
@@ -232,8 +301,8 @@ test("mode-specific required fields are revealed for an ATO logbook trip", async
   expect(page.externalRequests).toEqual([]);
 });
 
-test("schema version 3 blocks application data loading", async ({ page }) => {
-  await page.goto("/?schema=3");
+test("schema version 4 blocks application data loading", async ({ page }) => {
+  await page.goto("/?schema=4");
   await expect(page.locator("#compatibility-dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Travel Log needs a moment" })).toBeVisible();
   await expect(page.locator("#app-view")).toBeHidden();
