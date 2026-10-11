@@ -9,6 +9,6 @@
     "test:integration": "node --env-file-if-exists=.env.integration.local --test tests/integration/tenant-isolation.integration.cjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.64.0"
   }
 }
