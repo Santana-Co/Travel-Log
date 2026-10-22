@@ -1,7 +1,8 @@
 const payloadText = sessionStorage.getItem("travel-log-print-report");
 sessionStorage.removeItem("travel-log-print-report");
 const $ = (selector) => document.querySelector(selector);
-const { atoRateForDate, claimAmount, claimSummary, distanceSourceLabel, logbookAnnualSummary, manualDistanceReasonLabel, normalizeRecordingMode, normalizeTripClassification, totalDistance } = TravelLogLogic;
+const { atoRateForDate, distanceSourceLabel, manualDistanceReasonLabel, normalizeRecordingMode, normalizeTripClassification, totalDistance } = TravelLogLogic;
+const { reportingPeriodLabel, reportingSummary } = TravelLogLogic;
 const formatKm = (value) => `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)} km`;
 const formatMoney = (value) => new Intl.NumberFormat(undefined, { style: "currency", currency: "AUD" }).format(value);
 const formatDate = (value) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -16,39 +17,22 @@ if (!payloadText) {
     const report = JSON.parse(payloadText);
     const trips = Array.isArray(report.trips) ? report.trips : [];
     const recordingMode = normalizeRecordingMode(report.recordingMode);
-    const distances = trips.reduce((sum, trip) => sum + totalDistance(trip), 0);
-    const claims = claimSummary(trips, recordingMode);
-    const dates = trips.map((trip) => trip.date).sort();
-    const period = report.filters?.from || report.filters?.to ? `${report.filters.from ? formatDate(report.filters.from) : "Beginning"} – ${report.filters.to ? formatDate(report.filters.to) : "Present"}` : `${formatDate(dates[0])} – ${formatDate(dates.at(-1))}`;
+    const summary = reportingSummary(trips, recordingMode, { filters: report.filters, periods: report.logbookPeriods, annualRecords: report.annualOdometerRecords, allTrips: report.logbookTrips });
+    const period = reportingPeriodLabel(report.filters);
     $("#report-owner").textContent = [report.user?.name, report.user?.email].filter(Boolean).join(" · ");
     $("#report-period").textContent = period;
     $("#generated-date").textContent = new Date(report.generatedAt).toLocaleString();
     $("#report-trip-count").textContent = trips.length;
-    $("#report-distance").textContent = formatKm(distances);
-    if (recordingMode === "ato_cents") {
-      $("#report-claim-label").textContent = "ATO cents/km estimate";
-      $("#report-claim").textContent = formatMoney(claims.atoCents);
-      $("#claim-summary-note").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} of Work travel excluded above the annual ATO cap.` : "Only Work trips are included; the ATO annual cap is applied automatically.";
-    } else if (recordingMode === "ato_logbook") {
-      const periods = Array.isArray(report.logbookPeriods) ? report.logbookPeriods : [];
-      const annualRecords = Array.isArray(report.annualOdometerRecords) ? report.annualOdometerRecords : [];
-      const logbookTrips = Array.isArray(report.logbookTrips) ? report.logbookTrips : trips;
-      const estimatedBusinessKilometres = annualRecords.reduce((sum, record) => {
-        const period = periods.find((item) => item.id === record.logbookPeriodId);
-        const summary = logbookAnnualSummary(record, period, logbookTrips);
-        return sum + (summary.isValid ? summary.estimatedBusinessKilometres : 0);
-      }, 0);
-      $("#report-claim-label").textContent = "Estimated business km";
-      $("#report-claim").textContent = formatKm(estimatedBusinessKilometres);
-      $("#claim-summary-note").textContent = "Calculated from Work trips in each valid representative logbook and the matching financial-year odometer total. Apply that percentage to eligible actual car expenses separately.";
-    } else {
-      $("#report-claim-label").textContent = "Reimbursement estimate";
-      $("#report-claim").textContent = formatMoney(claims.employer);
-      $("#claim-summary-note").textContent = "Only Work trips with an employer reimbursement rate are included in this estimate.";
-    }
+    $("#report-distance").textContent = formatKm(summary.total);
+    $("#report-inclusion").textContent = summary.scopeNote;
+    $("#report-claim-label").textContent = summary.label;
+    $("#report-claim").textContent = summary.estimate === null ? "Unavailable" : summary.unit === "km" ? formatKm(summary.estimate) : formatMoney(summary.estimate);
+    $("#claim-summary-note").textContent = summary.note;
+    $("#report-classifications").textContent = ["work", "personal", "unclassified"].map((type) => `${{ work: "Work", personal: "Personal", unclassified: "Unclassified" }[type]}: ${summary.counts[type]} ${summary.counts[type] === 1 ? "trip" : "trips"} · ${formatKm(summary.classifications[type])}`).join(" | ");
+    $("#report-empty").hidden = trips.length > 0;
     const classificationFilter = report.filters?.classification && report.filters.classification !== "all" ? `Trip type: ${{ work: "Work", personal: "Personal", unclassified: "Unclassified" }[report.filters.classification] || report.filters.classification}` : "";
-    const appliedFilters = [classificationFilter, report.filters?.client && `Client/project: ${report.filters.client}`, report.filters?.search && `Search: ${report.filters.search}`].filter(Boolean);
-    $("#filter-summary").textContent = appliedFilters.length ? `Applied filters · ${appliedFilters.join(" · ")}` : "";
+    const appliedFilters = [classificationFilter, report.filters?.client && `Client/project: ${report.filters.client}`, report.filters?.query && `Search: ${report.filters.query}`].filter(Boolean);
+    $("#filter-summary").textContent = appliedFilters.length ? `Applied filters · ${appliedFilters.join(" · ")}` : "All trip types; no search or client filter.";
     $("#report-rows").innerHTML = trips.map((trip) => {
       const route = [trip.start, ...(trip.stops || []), trip.end].join(" → ");
       const work = [trip.purpose, trip.clientProject].filter(Boolean).join(" · ") || "—";
@@ -59,9 +43,9 @@ if (!payloadText) {
       const journeyDates = trip.endDate && trip.endDate !== trip.date ? `${formatDate(trip.date)} – ${formatDate(trip.endDate)}` : formatDate(trip.date);
       const classification = { work: "Work", personal: "Personal", unclassified: "Unclassified" }[normalizeTripClassification(trip.classification)];
       const method = { record_only: "General record", employer: "Employer reimbursement", ato_cents: "ATO cents/km", ato_logbook: "ATO logbook" }[displayedMethod] || "General record";
-      const amount = claimAmount(trip, recordingMode);
+      const amount = summary.unit === "AUD" && summary.estimate !== null ? summary.contributions.get(trip) : null;
       const distanceEvidence = [distanceSourceLabel(trip.distanceSource), trip.distanceSource === "manual" && manualDistanceReasonLabel(trip.manualDistanceReason), trip.distanceSource === "manual" && trip.manualDistanceNote].filter(Boolean).join(" · ");
-      return `<tr><td>${escapeHtml(journeyDates)}</td><td>${escapeHtml(classification)}</td><td>${escapeHtml(work)}</td><td>${escapeHtml(route)}</td><td>${escapeHtml(vehicle)}</td><td>${escapeHtml(odometer)}</td><td>${escapeHtml(formatKm(totalDistance(trip)))}</td><td>${escapeHtml(distanceEvidence)}</td><td>${escapeHtml(method)}</td><td>${rate ? `${escapeHtml(rate)}¢/km` : "—"}</td><td>${amount ? escapeHtml(formatMoney(amount)) : "—"}</td></tr>`;
+      return `<tr><td>${escapeHtml(journeyDates)}</td><td>${escapeHtml(classification)}</td><td>${escapeHtml(work)}</td><td>${escapeHtml(route)}</td><td>${escapeHtml(vehicle)}</td><td>${escapeHtml(odometer)}</td><td>${escapeHtml(formatKm(totalDistance(trip)))}</td><td>${escapeHtml(distanceEvidence)}</td><td>${escapeHtml(method)}</td><td>${rate ? `${escapeHtml(rate)}¢/km` : "—"}</td><td>${amount !== null ? escapeHtml(formatMoney(amount)) : "—"}</td></tr>`;
     }).join("");
   } catch {
     $("#report-content").hidden = true;

@@ -24,6 +24,7 @@ let currentUser = null;
 let currentProfile = null;
 let authMode = "signin";
 let privacyResolver = null;
+const { financialYearRange, reportingPeriodLabel, reportingSummary } = TravelLogLogic;
 
 if (appEnvironment === "staging") {
   document.documentElement.dataset.environment = "staging";
@@ -84,40 +85,43 @@ function fromAnnualOdometerDatabase(row) {
   return { id: row.id, logbookPeriodId: row.logbook_period_id, vehicleRegistration: row.vehicle_registration, incomeYearStart: Number(row.income_year_start), openingOdometer: Number(row.opening_odometer), closingOdometer: Number(row.closing_odometer), circumstancesChanged: Boolean(row.circumstances_changed), notes: row.notes || "" };
 }
 
-function filteredTrips() {
-  return filterTripRecords(trips, { query: $("#search").value, client: $("#filter-client").value, from: $("#filter-from").value, to: $("#filter-to").value, classification: $("#filter-classification").value });
+function reportFilters() {
+  return { query: $("#search").value.trim(), client: $("#filter-client").value.trim(), from: $("#filter-from").value, to: $("#filter-to").value, classification: $("#filter-classification").value };
+}
+function filteredTrips() { return filterTripRecords(trips, reportFilters()); }
+function selectedReportSummary(records) {
+  return reportingSummary(records, activeRecordingMode(), { filters: reportFilters(), periods: logbookPeriods, annualRecords: annualOdometerRecords, allTrips: trips });
+}
+function renderFinancialYears() {
+  const control = $("#filter-financial-year");
+  const selected = control.value || "all";
+  const current = atoIncomeYearStart(localCalendarDate());
+  const years = new Set([current, current - 1, current - 2, ...trips.map((trip) => atoIncomeYearStart(trip.date)), ...annualOdometerRecords.map((record) => record.incomeYearStart)]);
+  if (financialYearRange(selected)) years.add(Number(selected));
+  control.replaceChildren(new Option("All dates", "all"), new Option("Custom dates", "custom"), ...[...years].filter((year) => financialYearRange(year)).sort((a, b) => b - a).map((year) => new Option(`FY ${financialYearRange(year).label}${year === current ? " (current)" : ""}`, String(year))));
+  control.value = selected;
 }
 
 function render() {
+  renderFinancialYears();
   const rangeError = filterError($("#filter-from").value, $("#filter-to").value);
   $("#filter-message").textContent = rangeError;
   const matchingTrips = filteredTrips();
-  const total = matchingTrips.reduce((sum, trip) => sum + totalDistance(trip), 0);
-  const today = new Date();
-  const monthTotal = matchingTrips.filter((trip) => { const date = new Date(`${trip.date}T00:00:00`); return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear(); }).reduce((sum, trip) => sum + totalDistance(trip), 0);
   const recordingMode = activeRecordingMode();
-  const claims = claimSummary(matchingTrips, recordingMode);
+  const summary = selectedReportSummary(matchingTrips);
   $("#trip-count").textContent = matchingTrips.length;
-  $("#total-distance").textContent = formatKm(total);
-  $("#month-distance").textContent = formatKm(monthTotal);
-  if (recordingMode === "ato_cents") {
-    $("#claim-summary-label").textContent = "ATO cents/km estimate";
-    $("#claim-total").textContent = formatMoney(claims.atoCents);
-    $("#ato-cap-message").textContent = claims.cappedKilometres ? `${formatKm(claims.cappedKilometres)} of Work travel is above the ATO 5,000 km annual cap and has been excluded from the estimate.` : "Only Work trips are included; ATO estimates are capped automatically in the summary.";
-  } else if (recordingMode === "ato_logbook") {
-    const annualBusinessKilometres = annualOdometerRecords.reduce((sum, record) => {
-      const period = logbookPeriods.find((item) => item.id === record.logbookPeriodId);
-      const summary = logbookAnnualSummary(record, period, trips);
-      return sum + (summary.isValid ? summary.estimatedBusinessKilometres : 0);
-    }, 0);
-    $("#claim-summary-label").textContent = "Estimated business km";
-    $("#claim-total").textContent = formatKm(annualBusinessKilometres);
-    $("#ato-cap-message").textContent = "Calculated from Work trips in each valid logbook and the matching financial-year odometer record.";
-  } else {
-    $("#claim-summary-label").textContent = "Reimbursement estimate";
-    $("#claim-total").textContent = formatMoney(claims.employer);
-    $("#ato-cap-message").textContent = "Only Work trips with an employer rate are included in this estimate.";
-  }
+  $("#total-distance").textContent = formatKm(summary.total);
+  $("#work-distance").textContent = formatKm(summary.classifications.work);
+  $("#claim-summary-label").textContent = summary.label;
+  $("#claim-total").textContent = rangeError || summary.estimate === null ? "Unavailable" : summary.unit === "km" ? formatKm(summary.estimate) : formatMoney(summary.estimate);
+  $("#ato-cap-message").textContent = summary.note;
+  $("#reporting-period").textContent = reportingPeriodLabel(reportFilters());
+  $("#classification-summary").textContent = ["work", "personal", "unclassified"].map((type) => `${{ work: "Work", personal: "Personal", unclassified: "Unclassified" }[type]}: ${summary.counts[type]} ${summary.counts[type] === 1 ? "trip" : "trips"} · ${formatKm(summary.classifications[type])}`).join(" | ");
+  $("#report-inclusion").textContent = rangeError ? "Correct the date range to prepare a report." : summary.scopeNote;
+  $("#report-empty-message").hidden = Boolean(rangeError) || matchingTrips.length > 0;
+  $("#report-empty-message").textContent = `No trips match ${reportingPeriodLabel(reportFilters())} and the selected filters. Change the period or clear filters to see other records.`;
+  $("#export-button").disabled = Boolean(rangeError) || !matchingTrips.length;
+  $("#print-report").disabled = Boolean(rangeError) || (!matchingTrips.length && summary.estimate === null);
   $("#trip-label").textContent = matchingTrips.length === trips.length ? (trips.length === 1 ? "1 trip" : `${trips.length} trips`) : `${matchingTrips.length} of ${trips.length} trips`;
   $("#empty-state").hidden = trips.length > 0;
   $("#trip-list").innerHTML = matchingTrips.map((trip) => {
@@ -147,7 +151,7 @@ function render() {
     ].filter(Boolean);
     const workRows = [["Purpose", trip.purpose], ["Client or project", trip.clientProject]].filter(([, value]) => value);
     const vehicleRows = [["Vehicle", trip.vehicle], ["Registration", trip.vehicleRegistration], hasOdometer && ["Odometer", `${trip.odometerStart}–${trip.odometerEnd} km`]].filter(Boolean).filter(([, value]) => value);
-    const additionalRows = [["Trip type", classificationLabel], ["Recording method", methodLabel], trip.rateCents > 0 && ["Employer rate", `${trip.rateCents}¢/km`], displayedClaim > 0 && ["Estimate", formatMoney(displayedClaim)], ["Notes", trip.notes]].filter(Boolean).filter(([, value]) => value);
+    const additionalRows = [["Trip type", classificationLabel], ["Recording method", methodLabel], trip.rateCents > 0 && ["Employer rate", `${trip.rateCents}¢/km`], displayedClaim > 0 && ["Estimate before annual cap", formatMoney(displayedClaim)], ["Notes", trip.notes]].filter(Boolean).filter(([, value]) => value);
     const rows = (items) => items.map(([term, value]) => `<div><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
     const detailGroup = (title, items) => items.length ? `<section><h4>${title}</h4><dl>${rows(items)}</dl></section>` : "";
     const tripLabel = `${trip.start} to ${trip.end}`;
@@ -465,10 +469,16 @@ function exportCsv() {
   const reportTrips = filteredTrips();
   if (!reportTrips.length) return alert("No trips match the current filters.");
   const header = ["Journey starts", "Journey ends", "Classification", "Purpose", "Client or project", "Vehicle", "Registration", "Claim method", "Start address", "Stops", "End address", "Route estimate (km)", "Distance source", "Manual distance reason", "Manual distance note", "Round trip", "Starting odometer", "Ending odometer", "Recorded total distance (km)", "Rate (cents/km)", "Trip estimate before annual cap (AUD)", "Notes"];
+  header.push("Financial year (journey start)", "Reporting period", "Contribution to report estimate (AUD, after cap)");
   const recordingMode = activeRecordingMode();
+  const summary = selectedReportSummary(reportTrips);
   const rows = reportTrips.map((trip) => {
     const method = recordingMode === "ato_cents" ? "ato_cents" : trip.claimMethod;
     return [trip.date, trip.endDate || trip.date, normalizeTripClassification(trip.classification), trip.purpose, trip.clientProject, trip.vehicle, trip.vehicleRegistration, method, trip.start, (trip.stops || []).join(" → "), trip.end, trip.distance, normalizeDistanceSource(trip.distanceSource), trip.manualDistanceReason || "", trip.manualDistanceNote || "", trip.roundTrip ? "Yes" : "No", trip.odometerStart, trip.odometerEnd, totalDistance(trip), method === "ato_cents" ? atoRateForDate(trip.date) : (trip.rateCents || ""), claimAmount(trip, recordingMode).toFixed(2), trip.notes];
+  });
+  rows.forEach((row, index) => {
+    const trip = reportTrips[index];
+    row.push(atoIncomeYear(trip.date), reportingPeriodLabel(reportFilters()), summary.unit === "AUD" && summary.estimate !== null ? summary.contributions.get(trip).toFixed(2) : "");
   });
   const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
   downloadBlob("travel-log-report.csv", new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -478,9 +488,9 @@ function openPrintableReport() {
   const rangeError = filterError($("#filter-from").value, $("#filter-to").value);
   if (rangeError) return alert(rangeError);
   const reportTrips = filteredTrips();
-  if (!reportTrips.length) return alert("No trips match the current filters.");
   const recordingMode = activeRecordingMode();
   const payload = { generatedAt: new Date().toISOString(), recordingMode, user: { name: currentProfile?.full_name || currentUser.user_metadata?.full_name || "", email: currentUser.email }, filters: { from: $("#filter-from").value, to: $("#filter-to").value, client: $("#filter-client").value.trim(), search: $("#search").value.trim(), classification: $("#filter-classification").value }, logbookPeriods, annualOdometerRecords, logbookTrips: trips, trips: reportTrips, claimSummary: claimSummary(reportTrips, recordingMode) };
+  payload.filters = reportFilters();
   sessionStorage.setItem("travel-log-print-report", JSON.stringify(payload));
   const reportWindow = window.open("report.html", "_blank");
   if (!reportWindow) { sessionStorage.removeItem("travel-log-print-report"); alert("Allow pop-ups for Travel Log, then try Print / Save PDF again."); }
@@ -864,11 +874,19 @@ $("#empty-add-button").addEventListener("click", () => openForm());
 $("#close-button").addEventListener("click", () => dialog.close());
 $("#cancel-button").addEventListener("click", () => dialog.close());
 $("#search").addEventListener("input", render);
-$("#filter-from").addEventListener("input", render);
-$("#filter-to").addEventListener("input", render);
+$("#filter-financial-year").addEventListener("change", () => {
+  const selection = $("#filter-financial-year").value;
+  const range = financialYearRange(selection);
+  if (range || selection === "all") {
+    $("#filter-from").value = range?.from || "";
+    $("#filter-to").value = range?.to || "";
+  }
+  render();
+});
+for (const id of ["#filter-from", "#filter-to"]) $(id).addEventListener("input", () => { $("#filter-financial-year").value = "custom"; render(); });
 $("#filter-client").addEventListener("input", render);
 $("#filter-classification").addEventListener("change", render);
-$("#clear-filters").addEventListener("click", () => { $("#search").value = ""; $("#filter-from").value = ""; $("#filter-to").value = ""; $("#filter-client").value = ""; $("#filter-classification").value = "all"; render(); });
+$("#clear-filters").addEventListener("click", () => { $("#filter-financial-year").value = "all"; $("#search").value = ""; $("#filter-from").value = ""; $("#filter-to").value = ""; $("#filter-client").value = ""; $("#filter-classification").value = "all"; render(); });
 $("#export-button").addEventListener("click", exportCsv);
 $("#print-report").addEventListener("click", openPrintableReport);
 $("#calculate-distance").addEventListener("click", calculateDistance);
