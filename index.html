@@ -48,12 +48,20 @@
     </main>
 
     <main id="app-view" hidden>
+      <section class="report-period-control" aria-label="Reporting period">
+        <label>Financial year<select id="filter-financial-year" aria-describedby="reporting-date-rule"><option value="all">All dates</option><option value="custom">Custom dates</option></select></label>
+        <div><h2 id="reporting-period">All dates</h2><p id="reporting-date-rule">1 July–30 June. Trips belong to the period of their journey start date, even if they end later. All totals and trip exports use the filters below.</p></div>
+      </section>
       <section class="summary" aria-label="Travel summary">
-        <article><span>Total trips</span><strong id="trip-count">0</strong></article>
-        <article><span>Displayed distance</span><strong id="total-distance">0 km</strong></article>
-        <article><span>This month (displayed)</span><strong id="month-distance">0 km</strong></article>
+        <article><span>Selected trips</span><strong id="trip-count">0</strong></article>
+        <article><span>Recorded distance (selected trips)</span><strong id="total-distance">0 km</strong></article>
+        <article><span>Work distance (selected trips)</span><strong id="work-distance">0 km</strong></article>
         <article><span id="claim-summary-label">Reimbursement estimate</span><strong id="claim-total">$0.00</strong></article>
       </section>
+      <p id="report-inclusion" class="report-scope" role="status"></p>
+      <p id="classification-summary" class="report-scope"></p>
+      <p id="report-empty-message" class="report-empty-message" role="status" hidden></p>
+      <details class="report-explanation"><summary>What do these totals include?</summary><p>Work records are not automatically eligible claims. Personal and Unclassified records remain visible unless filtered out. Estimates are not tax advice. CSV includes distance evidence and a contribution column matching the monetary summary after caps. Trip-card estimates are before caps. Annual logbook estimates appear in Print / Save PDF, not as trip amounts. Download my data in Account settings remains a full-account JSON backup, not a filtered report.</p></details>
       <section class="ato-guidance" aria-label="Active travel recording method">
         <div><strong id="mode-guidance-title">Employer reimbursement / general travel log</strong><span id="mode-guidance-text">Record work travel and optionally add your employer's reimbursement rate.</span><span id="mode-guidance-link" hidden><a href="ato-guide.html">Read the ATO record-keeping guide</a>.</span></div>
         <p id="ato-cap-message"></p>

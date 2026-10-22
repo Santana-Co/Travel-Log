@@ -139,6 +139,103 @@
 
   function filterError(from, to) { return from && to && from > to ? "The From date must be before or the same as the To date." : ""; }
 
+  function financialYearRange(startYear) {
+    const year = Number(startYear);
+    if (!Number.isInteger(year) || year < 1000 || year > 9998) return null;
+    return { from: `${year}-07-01`, to: `${year + 1}-06-30`, label: `${year}–${String(year + 1).slice(-2)}` };
+  }
+
+  function reportingPeriodLabel(filters = {}) {
+    const { from = "", to = "" } = filters;
+    const year = financialYearRange(atoIncomeYearStart(from));
+    const dateLabel = (date) => {
+      if (!isCalendarDate(date)) return date;
+      const [y, m, d] = date.split("-").map(Number);
+      return `${d} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m - 1]} ${y}`;
+    };
+    if (year && from === year.from && to === year.to) return `FY ${year.label} · ${dateLabel(from)} – ${dateLabel(to)}`;
+    return from || to ? `${from ? dateLabel(from) : "Beginning"} – ${to ? dateLabel(to) : "Onwards"}` : "All dates";
+  }
+
+  // Shared filtered scope for screen, CSV and print; annual logbooks are not trip amounts.
+  function reportingSummary(trips, recordingMode, options = {}) {
+    const mode = normalizeRecordingMode(recordingMode);
+    const filters = options.filters || {};
+    const periodTrips = filterTrips(options.allTrips || trips, { from: filters.from, to: filters.to });
+    const outsidePeriod = (options.allTrips || trips).length - periodTrips.length;
+    const scopeNote = `${trips.length} of ${periodTrips.length} trips in this period included; ${periodTrips.length - trips.length} excluded by trip type, search or client filters. ${outsidePeriod} trips outside this period.`;
+    const classifications = { work: 0, personal: 0, unclassified: 0 };
+    const counts = { work: 0, personal: 0, unclassified: 0 };
+    trips.forEach((trip) => {
+      const type = normalizeTripClassification(trip.classification);
+      classifications[type] += totalDistance(trip);
+      counts[type] += 1;
+    });
+    const claims = claimSummary(trips, mode);
+    const contributions = new Map();
+    const usedKilometres = new Map();
+    let runningAmount = 0;
+    let allocatedCents = 0;
+    // Allocate the existing annual cap chronologically; IDs break same-day ties.
+    [...trips].sort((a, b) => a.date.localeCompare(b.date) || String(a.id || "").localeCompare(String(b.id || ""))).forEach((trip) => {
+      let amount = 0;
+      if (isWorkTrip(trip) && mode === "ato_cents") {
+        const key = `${atoIncomeYear(trip.date)}|${String(trip.vehicleRegistration || "unassigned").toUpperCase()}`;
+        const used = usedKilometres.get(key) || 0;
+        amount = Math.min(totalDistance(trip), Math.max(0, 5000 - used)) * number(atoRateForDate(trip.date)) / 100;
+        usedKilometres.set(key, used + totalDistance(trip));
+      } else if (isWorkTrip(trip) && mode === "general" && claimMethodForMode(trip, mode) === "employer") amount = claimAmount(trip, mode);
+      runningAmount += amount;
+      const roundedCents = Math.round((runningAmount + Number.EPSILON) * 100);
+      contributions.set(trip, (roundedCents - allocatedCents) / 100);
+      allocatedCents = roundedCents;
+    });
+    let estimate = allocatedCents / 100;
+    let label = mode === "ato_cents" ? "ATO cents/km estimate" : "Reimbursement estimate";
+    let unit = "AUD";
+    let note = "Only Work trips with an employer rate contribute. Personal and Unclassified trips are excluded from estimates.";
+    if (mode === "ato_cents") {
+      note = "Only Work trips contribute. The 5,000 km cap is applied per car and financial year within the selected records; this is not a remaining annual entitlement.";
+      if (claims.cappedKilometres) note += ` ${claims.cappedKilometres} km above the cap excluded.`;
+      if (trips.some((trip) => isWorkTrip(trip) && atoRateForDate(trip.date) === null)) {
+        estimate = null;
+        note = "Estimate unavailable: an ATO rate is not configured for one or more selected Work trips. Recorded distances remain available.";
+      }
+    }
+    if (mode === "ato_logbook") {
+      label = "Annual estimated business km";
+      unit = "km";
+      const wholeYears = (!filters.from && !filters.to) || (isCalendarDate(filters.from) && isCalendarDate(filters.to) && filters.from.endsWith("-07-01") && filters.to.endsWith("-06-30") && filters.from <= filters.to);
+      const unrestricted = !String(filters.query || filters.search || "").trim() && !String(filters.client || "").trim() && [undefined, "all", "work"].includes(filters.classification);
+      const annual = (options.annualRecords || []).filter((record) => {
+        const range = financialYearRange(record.incomeYearStart);
+        return range && (!filters.from || range.from >= filters.from) && (!filters.to || range.to <= filters.to);
+      }).map((record) => {
+        const period = (options.periods || []).find((item) => item.id === record.logbookPeriodId);
+        const summary = logbookAnnualSummary(record, period, options.allTrips || trips);
+        // Reporting must not present unsupported percentages as a valid annual result.
+        const supported = period && !validateLogbookPeriod(period) && !validateAnnualOdometerRecord(record)
+          && String(record.vehicleRegistration).toUpperCase() === String(period.vehicleRegistration).toUpperCase()
+          && Number.isFinite(summary.businessUsePercent) && summary.businessUsePercent >= 0 && summary.businessUsePercent <= 100;
+        return { ...summary, isValid: summary.isValid && supported };
+      });
+      const valid = annual.filter((summary) => summary.isValid);
+      estimate = wholeYears && unrestricted && valid.length ? valid.reduce((sum, summary) => sum + summary.estimatedBusinessKilometres, 0) : null;
+      note = !wholeYears || !unrestricted
+        ? "Annual estimate unavailable for partial years, search, client, Personal or Unclassified filters. Select a full financial year and clear those filters."
+        : valid.length ? `Based on ${valid.length} valid annual odometer record(s) in the selected years and their full representative logbooks—not the sum of displayed trips. ${annual.length - valid.length} invalid annual record(s) excluded.`
+          : "No valid annual odometer records for this period. Add or review them in Account settings; trip distances are still shown.";
+      note += " CSV contains trip records, not an allocated annual logbook estimate. Use Print / Save PDF for the annual summary.";
+    }
+    if (mode !== "ato_logbook") {
+      const contributing = [...contributions.values()].filter((amount) => amount > 0).length;
+      note += !counts.work ? " No Work trips in this selection."
+        : estimate === null ? " No monetary contributions are reported while the estimate is unavailable."
+          : ` ${contributing} of ${trips.length} selected trips contribute to this estimate; ${trips.length - contributing} do not (classification, method/rate or cap).`;
+    }
+    return { classifications, counts, total: Object.values(classifications).reduce((a, b) => a + b, 0), estimate, label, unit, note, contributions, scopeNote };
+  }
+
   function validateTrip(trip, options = {}) {
     const classification = normalizeTripClassification(trip.classification);
     if (options.requireClassified && classification === "unclassified") return "Choose whether this is a Work or Personal trip.";
@@ -199,6 +296,7 @@
   }
 
   const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, distanceSourceLabel, duplicateDistanceEvidence, filterError, filterTrips, isWorkTrip, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, manualDistanceReasonLabel, normalizeDistanceSource, normalizeManualDistanceReason, normalizeRecordingMode, normalizeTripClassification, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
+  Object.assign(api, { financialYearRange, reportingPeriodLabel, reportingSummary });
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

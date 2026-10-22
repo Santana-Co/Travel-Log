@@ -6,7 +6,7 @@ Travel Log is an Australian work-travel, compliance, and evidence web pilot. Sig
 
 The responsive static application is deployed from `main` through GitHub Pages. Browser JavaScript talks directly to Supabase Auth, PostgREST, and RPCs; PostgreSQL constraints and RLS enforce tenant ownership. A protected Cloudflare Worker mediates route-distance requests to an external routing provider.
 
-This branch defines application schema **5** and a browser minimum of **5** for persisted distance provenance. Production and staging currently operate on schema/browser version **4**; do not deploy this browser before the separately approved database-first schema-v5 migration. Startup accepts the minimum version or higher and fails safely on missing, invalid, errored, or older versions.
+Application schema and browser minimum are **5**. The accepted Task #13 release established schema 5 in production and staging; see the dated [project handover](docs/project/CURRENT_STATE.md) for current context. Startup accepts the minimum version or higher and fails safely on missing, invalid, errored, or older versions. Task #14 reporting changes require no migration or compatibility change.
 
 Live staging tests have verified two-user tenant isolation across the five private application tables and relevant RPCs. Production schema drift, account deletion, and local calendar-date handling have been corrected and verified. A logical backup and disposable PostgreSQL restore validated application schema/data recovery, but full managed Supabase recovery remains **PARTIALLY VERIFIED**.
 
@@ -21,6 +21,14 @@ Live staging tests have verified two-user tenant isolation across the five priva
 - Cross-device appearance and recording-mode preferences
 
 ATO outputs are estimates and record-keeping aids, not personalised tax advice.
+
+## Financial-year reporting
+
+Choose **All dates**, an Australian **FY (1 July–30 June)**, or **Custom dates**. The journey start date determines inclusion, even when a trip ends in another year. Trip type, search and client filters also apply. The summary separates selected distance, Work distance and classification counts, and explains exclusions and empty selections.
+
+Dashboard, CSV and print share the same reporting calculations. CSV retains provenance/manual evidence and adds a contribution column that sums to the displayed monetary total after caps and rounding. Caps apply per car/year within the selected records, not as a statement of remaining annual entitlement. Work does not establish eligibility. Annual logbook estimates use supported full-year odometer records and their complete representative logbooks; partial-year or unrelated filters show an explanation instead of an allocated trip amount. Print includes the annual summary; CSV remains trip-level.
+
+**Download my data** remains the complete JSON account export, unaffected by reporting filters. Filtered JSON reporting is future work, not part of Task #14. These reporting changes are pending review/deployment until their PR is merged.
 
 ## Repository map
 
@@ -65,7 +73,7 @@ Run the isolated Chromium critical-flow tests (after `npx playwright install chr
 npm run test:browser
 ```
 
-These tests load the real application assets with deterministic synthetic Auth, schema, profile, trip, logbook, and routing responses. They cover the essential-first trip form at desktop and mobile widths, classification and filtering, distance provenance, validation recovery, CRUD/duplication, local dates, CSV/JSON/print output, and schema compatibility. They block unexpected non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
+These tests load the real application assets with deterministic synthetic Auth, schema, profile, trip, logbook, and routing responses. They cover the essential-first trip form at desktop and mobile widths, classification and filtering, distance provenance, validation recovery, CRUD/duplication, local dates, CSV/JSON/print output, and schema compatibility. Reporting coverage includes FY boundaries, combined filters, capped contributions, annual logbooks, empty states and 390 × 844 layouts; its context-wide network guard also covers print popups. They block unexpected non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
 
 The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration:
 

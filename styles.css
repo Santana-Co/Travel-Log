@@ -35,6 +35,17 @@ dialog { background:var(--card); border:0; border-radius:14px; box-shadow:0 25px
 
 /* Explicit trip intent stays visible and keyboard-friendly without adding form density. */
 .filter-grid { grid-template-columns:2fr repeat(4,1fr); }
+.report-period-control { display:flex; align-items:center; gap:24px; margin-bottom:18px; }
+.report-period-control label { min-width:210px; }
+.report-period-control h2 { font-size:1.1rem; margin:0 0 6px; }
+.report-period-control p,.report-scope { color:var(--muted); font-size:.82rem; line-height:1.5; }
+.report-scope { margin:10px 0; }
+.report-empty-message { background:var(--guidance); border-radius:8px; padding:12px; font-size:.9rem; }
+.report-explanation { font-size:.82rem; line-height:1.5; color:var(--muted); }
+.report-explanation summary { cursor:pointer; padding:10px 0; }
+.report-explanation p { margin:6px 0 12px; }
+.report-actions button:disabled { opacity:.55; cursor:not-allowed; }
+@media (max-width:640px) { .report-period-control { align-items:stretch; flex-direction:column; gap:12px; } .report-period-control select { min-height:44px; } .summary { grid-template-columns:repeat(2,minmax(0,1fr)); } .summary article { padding:14px; overflow-wrap:anywhere; } .report-controls { margin-top:18px; } }
 .trip-classification { border:1px solid var(--line); border-radius:999px; display:inline-block; font-size:.72rem; font-weight:750; margin-top:7px; padding:3px 8px; }
 .classification-field { border:0; margin:0; padding:0; }
 .classification-field legend { font-size:.85rem; font-weight:700; margin-bottom:7px; }

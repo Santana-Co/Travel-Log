@@ -53,6 +53,27 @@
     }],
   };
 
+  state.annualRecords = [];
+  // Only synthetic boundary data; this scenario never contacts Supabase.
+  if (new URLSearchParams(location.search).has("reporting")) {
+    const baseline = state.trips[0];
+    const row = (suffix, date, distance, extra = {}) => ({ ...baseline, id: `00000000-0000-4000-8000-${String(suffix).padStart(12, "0")}`, trip_date: date, trip_end_date: date, distance_km: distance, round_trip: false, classification: "work", claim_method: "employer", rate_cents: 50, client_project: "Synthetic FY client", notes: `Synthetic FY ${suffix}`, ...extra });
+    state.trips = [
+      row(101, "2025-06-30", 999),
+      row(102, "2025-07-01", 4000),
+      row(103, "2026-06-30", 2000, { trip_end_date: "2026-07-02", distance_source: "manual", manual_distance_reason: "actual_route_differed", manual_distance_note: "Synthetic detour evidence" }),
+      row(104, "2026-02-01", 100, { classification: "personal", distance_source: "route_calculated" }),
+      row(105, "2026-02-02", 50, { classification: "unclassified" }),
+      row(106, "2026-07-01", 300),
+      row(107, "2024-02-29", 25),
+    ];
+    if (profile.recording_mode === "ato_logbook") {
+      state.trips[1].claim_method = "ato_logbook";
+      state.logbookPeriods = [{ ...state.logbookPeriods[0], vehicle_registration: "TEST123", start_date: "2025-07-01", end_date: "2025-09-30", opening_odometer: 0, closing_odometer: 10000 }];
+      state.annualRecords = [2025, 2026].map((year) => ({ id: `annual-${year}`, user_id: user.id, vehicle_registration: "TEST123", logbook_period_id: state.logbookPeriods[0].id, income_year_start: year, opening_odometer: 0, closing_odometer: year === 2025 ? 20000 : 10000, circumstances_changed: false }));
+    }
+  }
+
   const clone = (value) => structuredClone(value);
 
   class Query {
@@ -78,7 +99,7 @@
     async execute() {
       if (this.operation === "select") {
         state.reads[this.table] = (state.reads[this.table] || 0) + 1;
-        const rows = this.table === "profiles" ? [profile] : this.table === "trips" ? state.trips : this.table === "logbook_periods" ? state.logbookPeriods : [];
+        const rows = this.table === "profiles" ? [profile] : this.table === "trips" ? state.trips : this.table === "logbook_periods" ? state.logbookPeriods : this.table === "logbook_income_years" ? state.annualRecords : [];
         const selected = rows.filter((row) => this.matches(row)).map(clone);
         return { data: this.singleRow ? selected[0] : selected, error: null };
       }
