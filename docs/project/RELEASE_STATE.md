@@ -14,6 +14,12 @@ Latest known operational baseline, updated **22 October 2026** from established 
 
 ## Compatibility and release discipline
 
+### Task #15 candidate — not released
+
+Repository target/browser minimum **6** adds only a private saved-vehicles table and schema metadata. Production/staging/deployed browser remain **5**. The schema-5 browser keeps its unchanged trip-write contract against schema 6; the candidate blocks schema 5 before loading user records. Review [the vehicle release plan](../engineering/VEHICLE_PROFILES_RELEASE.md): approved staging migration/extended isolation/preview gate, then separately authorised production database-first gate, then frontend merge/deploy. No live migration or environment change occurred during implementation. Frontend rollback can retain schema 6 and saved profiles; do not drop new user data automatically.
+
+### Established schema-5 release
+
 Browser minimum **5** accepts integer schema versions **>= 5**, and fails closed otherwise. The old schema-4 browser was verified against schema 5 before frontend release. That compatibility result is specific to this additive migration, not a blanket promise for future changes.
 
 For a browser requiring a newer schema: freeze the candidate and migration checksum → fresh identity/schema/data preflight → private backup/recovery gate → staging-proven migration → verify old-client compatibility and ownership → exact synthetic cleanup → frontend **GO/NO-GO** → merge/deploy → post-deployment smoke and exact cleanup. Prove compatibility before choosing database-first; never assume it from this history. Fresh safety checks and action-specific production authority remain mandatory.

@@ -301,8 +301,8 @@ test("mode-specific required fields are revealed for an ATO logbook trip", async
   expect(page.externalRequests).toEqual([]);
 });
 
-test("schema version 4 blocks application data loading", async ({ page }) => {
-  await page.goto("/?schema=4");
+test("schema version 5 blocks application data loading", async ({ page }) => {
+  await page.goto("/?schema=5");
   await expect(page.locator("#compatibility-dialog")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Travel Log needs a moment" })).toBeVisible();
   await expect(page.locator("#app-view")).toBeHidden();
@@ -310,5 +310,6 @@ test("schema version 4 blocks application data loading", async ({ page }) => {
   const reads = await page.evaluate(() => window.__travelLogFixture.reads);
   expect(reads.profiles || 0).toBe(0);
   expect(reads.trips || 0).toBe(0);
+  expect(reads.vehicles || 0).toBe(0);
   expect(page.externalRequests).toEqual([]);
 });
