@@ -13,7 +13,8 @@
     recording_mode: new URLSearchParams(location.search).get("mode") || "general",
   };
   const state = {
-    schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 5),
+    schemaVersion: Number(new URLSearchParams(location.search).get("schema") || 6),
+    vehicles: [],
     reads: {},
     logbookPeriods: [{
       id: "00000000-0000-4000-8000-000000000020",
@@ -84,7 +85,7 @@
       this.filters = [];
       this.singleRow = false;
     }
-    select() { this.operation = "select"; return this; }
+    select() { this.returnRows = true; return this; }
     insert(payload) { this.operation = "insert"; this.payload = payload; return this; }
     update(payload) { this.operation = "update"; this.payload = payload; return this; }
     delete() { this.operation = "delete"; return this; }
@@ -99,9 +100,26 @@
     async execute() {
       if (this.operation === "select") {
         state.reads[this.table] = (state.reads[this.table] || 0) + 1;
-        const rows = this.table === "profiles" ? [profile] : this.table === "trips" ? state.trips : this.table === "logbook_periods" ? state.logbookPeriods : this.table === "logbook_income_years" ? state.annualRecords : [];
+        const rows = this.table === "profiles" ? [profile] : this.table === "trips" ? state.trips : this.table === "vehicles" ? state.vehicles : this.table === "logbook_periods" ? state.logbookPeriods : this.table === "logbook_income_years" ? state.annualRecords : [];
         const selected = rows.filter((row) => this.matches(row)).map(clone);
         return { data: this.singleRow ? selected[0] : selected, error: null };
+      }
+      if (this.table === "vehicles") {
+        if (state.failVehicleWrite) return { data: null, error: { message: "Synthetic save failure" } };
+        let changed = [];
+        if (this.operation === "insert") {
+          const stored = { archived: false, ...clone(this.payload), created_at: "2026-09-09T14:30:00.000Z", updated_at: "2026-09-09T14:30:00.000Z" };
+          state.vehicles.push(stored);
+          changed = [stored];
+        } else if (this.operation === "update") {
+          state.vehicles = state.vehicles.map((row) => {
+            if (!this.matches(row)) return row;
+            const stored = { ...row, ...clone(this.payload), updated_at: "2026-09-10T14:30:00.000Z" };
+            changed.push(stored);
+            return stored;
+          });
+        } else throw new Error(`Unexpected vehicle operation ${this.operation}`);
+        return { data: this.returnRows ? clone(this.singleRow ? changed[0] : changed) : null, error: null };
       }
       if (this.table !== "trips") throw new Error(`Unexpected write to ${this.table}`);
       if (this.operation === "insert" || this.operation === "upsert") {

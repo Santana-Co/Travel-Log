@@ -19,5 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Disposable vehicle migration and RLS checks
+        run: npm run test:migration:vehicles
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
