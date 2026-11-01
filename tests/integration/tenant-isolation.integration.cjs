@@ -214,6 +214,51 @@ test("live Supabase tenant isolation for the current Travel Log schema", { timeo
     const tripB = f.trip(userB, "b-main");
     await verifyOwnedTable(t, { table: "trips", userA, userB, rowA: tripA, rowB: tripB, deleteRowA: f.trip(userA, "a-delete"), ownUpdate: { notes: "User A updated synthetic trip" }, changedField: "notes" });
 
+    const vehicleA = { id: randomUUID(), user_id: userA.id, label: `Synthetic A ${runId}`, registration: "TESTA" };
+    const vehicleB = { id: randomUUID(), user_id: userB.id, label: `Synthetic B ${runId}`, registration: "TESTB" };
+    await t.test("vehicles: both users insert and read their own profiles", async () => {
+      for (const [actor, row] of [[userA, vehicleA], [userB, vehicleB]]) {
+        assertOk(await insertRow(actor, "vehicles", row), "Own vehicle insert");
+        const own = await selectRow(actor, "vehicles", row.id);
+        assertOk(own, "Own vehicle select");
+        assert.equal(own.data?.[0]?.label, row.label);
+      }
+    });
+    await t.test("vehicles: cross-user reads and spoofed inserts are blocked", async () => {
+      for (const [actor, foreign] of [[userA, vehicleB], [userB, vehicleA]]) {
+        const read = await selectRow(actor, "vehicles", foreign.id);
+        assertOk(read, "Cross-user vehicle select");
+        assert.deepEqual(read.data, []);
+        assertDenied(await insertRow(actor, "vehicles", { ...foreign, id: randomUUID() }), "Spoofed vehicle owner");
+      }
+    });
+    await t.test("vehicles: own edit/archive works without rewriting trip snapshots", async () => {
+      const before = await selectRow(userA, "trips", tripA.id);
+      const updated = await updateRow(userA, "vehicles", vehicleA.id, { label: "Updated synthetic A", archived: true });
+      assertOk(updated, "Own vehicle update");
+      assert.equal(updated.data?.[0]?.archived, true);
+      assert.deepEqual((await selectRow(userA, "trips", tripA.id)).data, before.data);
+    });
+    await t.test("vehicles: neither user can update the other's profile", async () => {
+      for (const [actor, foreign] of [[userA, vehicleB], [userB, vehicleA]]) {
+        const changed = await updateRow(actor, "vehicles", foreign.id, { label: "Cross-user edit" });
+        assertOk(changed, "Cross-user vehicle update");
+        assert.deepEqual(changed.data, []);
+      }
+    });
+    await t.test("vehicles: ownership and identity are immutable to both users", async () => {
+      for (const [actor, own, other] of [[userA, vehicleA, userB], [userB, vehicleB, userA]]) {
+        assertDenied(await updateRow(actor, "vehicles", own.id, { user_id: other.id }), "Vehicle owner reassignment");
+        assertDenied(await updateRow(actor, "vehicles", own.id, { id: randomUUID() }), "Vehicle ID reassignment");
+      }
+    });
+    await t.test("vehicles: direct own and cross-user deletion are denied; archive instead", async () => {
+      for (const actor of [userA, userB]) {
+        assertDenied(await deleteRow(actor, "vehicles", vehicleA.id), "Vehicle A direct delete");
+        assertDenied(await deleteRow(actor, "vehicles", vehicleB.id), "Vehicle B direct delete");
+      }
+    });
+
     const locationA = f.location(userA, "a-main");
     const locationB = f.location(userB, "b-main");
     await verifyOwnedTable(t, { table: "saved_locations", userA, userB, rowA: locationA, rowB: locationB, deleteRowA: f.location(userA, "a-delete"), ownUpdate: { address: `${runId} User A updated address` }, changedField: "address" });
@@ -255,7 +300,8 @@ test("live Supabase tenant isolation for the current Travel Log schema", { timeo
       const bLocation = await selectRow(userB, "saved_locations", locationB.id);
       const bLogbook = await selectRow(userB, "logbook_periods", logbookB.id);
       const bAnnual = await selectRow(userB, "logbook_income_years", annualB.id);
-      for (const response of [bProfile, bTrip, bLocation, bLogbook, bAnnual]) {
+      const bVehicle = await selectRow(userB, "vehicles", vehicleB.id);
+      for (const response of [bProfile, bTrip, bLocation, bLogbook, bAnnual, bVehicle]) {
         assertOk(response, "User B record after User A deletion");
         assert.equal(response.data?.length, 1);
       }

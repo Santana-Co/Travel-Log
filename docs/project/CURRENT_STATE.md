@@ -1,17 +1,17 @@
 # Travel Log — Current State
 
-Consolidated starting context, not a session log. Updated **22 October 2026** after Task #14 completion. Deployed product baseline: PR #23, merge `daa1655129dc42d07c9815b15c2ae31205ca9383`. Release facts come from established CI results and the user's completed manual production smoke, not a new audit.
+Consolidated starting context, not a session log. Updated **24 October 2026** for the Task #15 candidate, based on clean `main` `5d8420e9bd6db96ab54eb04c9b3e158ce4679365`. Deployed product baseline remains PR #23, merge `daa1655129dc42d07c9815b15c2ae31205ca9383`. Task #15 is not deployed; no new live environment checks or changes occurred.
 
 ## Current checkpoint
 
 - Last completed product task: **Task #14 — Financial-Year Reporting UX**, including deployment and the user's authenticated read-only production smoke.
 - Stage 0: **COMPLETE**. Current phase: **Refine**.
-- Production/staging application schema: **5**; current browser minimum: **5**.
+- Production/staging application schema and deployed browser minimum: **5**. Task #15 candidate repository schema/browser minimum: **6**, not released.
 - Last merged material product PR: **#23**, merge `daa1655129dc42d07c9815b15c2ae31205ca9383`.
 - Handover task **#13C** merged as PR #21; merged-main App checks, CodeQL and Pages passed.
-- Current task: **#14 — COMPLETE**; final manual smoke confirmed by the user without creating, editing or deleting production records.
-- Next recommended task: **Task #15 — Reusable Vehicle Profiles**, awaiting separate approval; not started.
-- Active Task #14 release blockers: **none**. Recovery remains **PARTIALLY VERIFIED**; staging deployment safeguard [issue #20](https://github.com/Santana-Co/Travel-Log/issues/20) is separate operational work.
+- Current task: **#15 — Reusable Vehicle Profiles**, implemented on `codex/reusable-vehicle-profiles`, pending PR/release gates; **not COMPLETE or deployed**. Task #14 remains COMPLETE.
+- Next action: review the candidate and approve a schema-6 staging release-validation gate. Do not merge/deploy the frontend before production schema 6 is verified. No later task is authorised.
+- Active Task #15 release gates: schema-6 staging migration/live isolation/preview, then separately approved production verification before frontend merge. Recovery remains **PARTIALLY VERIFIED**; staging deployment safeguard [issue #20](https://github.com/Santana-Co/Travel-Log/issues/20) is separate operational work.
 
 ## Product and deployed capabilities
 
@@ -30,7 +30,9 @@ Static HTML/CSS/JavaScript on GitHub Pages; no application server or framework. 
 
 Five private application tables: `profiles`, `trips`, `saved_locations`, `logbook_periods`, `logbook_income_years`. Supabase RLS and caller ownership—not browser filtering—form the tenant security boundary. Privileged credentials never belong in browser code or fixtures.
 
-Startup calls `get_app_schema_version()`. The browser accepts a valid integer version **>= 5**, including future higher versions; missing/invalid/error/older responses block normal loading through the compatibility state. Repository schema and browser minimum are separate concepts. Deployment details belong in [RELEASE_STATE.md](RELEASE_STATE.md).
+Task #15 adds candidate private table `vehicles` with description, optional registration, archive state and server timestamps. No trip FK: explicit selection copies existing historical snapshot fields. Profile edits never rewrite trips/logbooks; duplicate/edit keeps recorded values. Full JSON includes active/archived profiles; CSV/print/FY/ATO calculations keep reading trip snapshots.
+
+Startup calls `get_app_schema_version()`. The deployed browser accepts integer versions **>= 5**; the candidate minimum is **6**. Missing/invalid/error/older responses block normal loading before vehicle/profile/trip reads. Repository schema and browser minimum are separate concepts. Deployment details belong in [RELEASE_STATE.md](RELEASE_STATE.md).
 
 ## Product/data invariants
 
@@ -45,6 +47,8 @@ Startup calls `get_app_schema_version()`. The browser accepts a valid integer ve
 - Outputs are estimates/evidence support, not personal tax advice. Full JSON account download is not a filtered report.
 
 ## Meaningful test baseline
+
+- Task #15 candidate local gate: **44 unit/static passed**, **15 browser passed**, **44 disposable PostgreSQL migration/RLS assertions passed**; syntax, documentation links and diff checks passed. No live integration suite was run. These candidate results do not replace the deployed/live baseline below.
 
 - `npm test`: credential-free domain/date/classification/provenance/reporting rules, schema contracts, static assets, staging-build guards and syntax checks; deployed Task #14 baseline **40 passed**.
 - `npm run test:browser`: real local assets with deterministic synthetic backend boundaries; startup/compatibility, CRUD/duplication, dates, classification, provenance and CSV/JSON/print, including FY reconciliation and representative mobile checks. Deployed Task #14 baseline **11 passed**; non-loopback service access is blocked/mocked, not live verification.
@@ -62,9 +66,11 @@ Startup calls `get_app_schema_version()`. The browser accepts a valid integer ve
 
 ## Refine backlog and operational risks
 
+Task #15 candidate: saved-vehicle management and trip selection; manual entry retained; no historical inference or default preference; own-user RLS and restricted column grants; archive rather than direct deletion. Local disposable PostgreSQL and synthetic desktop/mobile browser coverage accompany the [release plan](../engineering/VEHICLE_PROFILES_RELEASE.md). Live six-table tenant isolation is still pending; the accepted 41-test live baseline covers the original five tables only.
+
 Completed: first-trip simplification (#14 PR), trip clarity/evidence presentation (#15 PR), classification (Task #12 / PR #16), persisted provenance/manual evidence (Task #13 / PR #17), financial-year reporting (Task #14 / PR #23). Task numbers and PR numbers are distinct.
 
-Next priorities: (1) **Task #15 — Reusable Vehicle Profiles**; (2) immutable corrections/audit history; (3) focused onboarding, accessibility/mobile polish and trust improvements. These are recommendations, not authorised work; Task #15 has not begun.
+Current priority: complete Task #15's review and separately approved release gates. Later possibilities remain immutable corrections/audit history and focused onboarding/accessibility/mobile polish; none is authorised by Task #15.
 
 Operational risks: **PARTIALLY VERIFIED** recovery (application restore exercised, complete managed Auth/Storage/Vault runtime not reproduced); staging Worker deployment guard [#20](https://github.com/Santana-Co/Travel-Log/issues/20); production Auth/signup diagnostics; missing central monitoring/health checks; incomplete rule-source/version metadata. Do not fold them into unrelated product work.
 

@@ -4,7 +4,7 @@ if (!runtimeConfig?.supabaseUrl || !runtimeConfig?.supabasePublishableKey || !ru
 const { supabaseUrl, supabasePublishableKey, distanceApiUrl } = runtimeConfig;
 const appEnvironment = runtimeConfig.environment === "staging" ? "staging" : "production";
 const privacyVersion = "2026-08-20-ato-logbook";
-const requiredSchemaVersion = 5;
+const requiredSchemaVersion = 6;
 const db = window.supabase.createClient(supabaseUrl, supabasePublishableKey);
 const $ = (selector) => document.querySelector(selector);
 $("#build-label").textContent = runtimeConfig.buildLabel || (appEnvironment === "staging" ? "Testing app" : "Live app");
@@ -18,6 +18,7 @@ const { atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSum
 
 let trips = [];
 let savedLocations = [];
+let vehicles = [];
 let logbookPeriods = [];
 let annualOdometerRecords = [];
 let currentUser = null;
@@ -25,6 +26,8 @@ let currentProfile = null;
 let authMode = "signin";
 let privacyResolver = null;
 const { financialYearRange, reportingPeriodLabel, reportingSummary } = TravelLogLogic;
+const { validateVehicleProfile, vehicleSnapshot } = TravelLogLogic;
+const vehiclesDialog = $("#vehicles-dialog");
 
 if (appEnvironment === "staging") {
   document.documentElement.dataset.environment = "staging";
@@ -178,6 +181,61 @@ async function loadSavedLocations() {
   renderSavedLocations();
 }
 
+function renderVehicleChoices() {
+  // No automatic match/default: a stored trip snapshot may differ from today's profile.
+  $("#saved-vehicle").replaceChildren(new Option("Enter manually / keep recorded values", ""), ...vehicles.filter((vehicle) => !vehicle.archived).map((vehicle) => new Option([vehicle.label, vehicle.registration].filter(Boolean).join(" — "), vehicle.id)));
+}
+
+function renderVehicles() {
+  $("#vehicle-list").innerHTML = vehicles.length ? vehicles.map((vehicle) => `<div class="saved-location vehicle-profile"><div><strong>${escapeHtml(vehicle.label)}</strong><span>${escapeHtml(vehicle.registration || "No registration saved")}${vehicle.archived ? " · Archived" : ""}</span></div><div class="vehicle-actions"><button type="button" class="text-button" data-edit-vehicle="${escapeAttribute(vehicle.id)}" aria-label="Edit ${escapeAttribute(vehicle.label)}">Edit</button><button type="button" class="text-button" data-archive-vehicle="${escapeAttribute(vehicle.id)}" aria-label="${vehicle.archived ? "Restore" : "Archive"} ${escapeAttribute(vehicle.label)}">${vehicle.archived ? "Restore" : "Archive"}</button></div></div>`).join("") : "<p>No saved vehicles yet. Add one below, or keep entering vehicles manually on trips.</p>";
+  renderVehicleChoices();
+}
+
+async function loadVehicles() {
+  const { data, error } = await db.from("vehicles").select("id, label, registration, archived, created_at, updated_at").order("label");
+  if (error) throw error;
+  vehicles = data || [];
+  renderVehicles();
+}
+
+function resetVehicleEditor() {
+  $("#vehicle-profile-form").reset();
+  $("#vehicle-profile-id").value = "";
+  $("#vehicle-editor-title").textContent = "Add vehicle";
+  $("#vehicle-profile-message").textContent = "";
+  $("#vehicle-profile-form").querySelectorAll('[aria-invalid="true"]').forEach((control) => control.removeAttribute("aria-invalid"));
+}
+
+function vehicleMessage(text, error = false) {
+  $("#vehicle-profile-message").textContent = text;
+  $("#vehicle-profile-message").classList.toggle("error", error);
+}
+
+async function saveVehicleProfile(event) {
+  event.preventDefault();
+  const profile = { label: $("#vehicle-profile-label").value.trim(), registration: $("#vehicle-profile-registration").value.trim().toUpperCase() };
+  const validationError = validateVehicleProfile(profile);
+  if (validationError) {
+    vehicleMessage(validationError, true);
+    const control = validationError.startsWith("Registration") ? $("#vehicle-profile-registration") : $("#vehicle-profile-label");
+    control.setAttribute("aria-invalid", "true");
+    control.focus();
+    return;
+  }
+  const id = $("#vehicle-profile-id").value;
+  const controls = [...$("#vehicle-profile-form").querySelectorAll("button, input")];
+  controls.forEach((control) => { control.disabled = true; });
+  try {
+    const query = id ? db.from("vehicles").update(profile).eq("id", id) : db.from("vehicles").insert({ ...profile, id: crypto.randomUUID(), user_id: currentUser.id });
+    const { data, error } = await query.select("id").single();
+    if (error || !data) throw error || new Error("The vehicle was not saved. Try again.");
+    await loadVehicles();
+    resetVehicleEditor();
+    vehicleMessage("Vehicle saved. Existing trip and logbook records have not changed.");
+  } catch (error) { vehicleMessage(`Vehicle could not be saved: ${error.message}`, true); }
+  finally { controls.forEach((control) => { control.disabled = false; }); }
+}
+
 function renderLogbooks() {
   const registrations = [...new Set([...logbookPeriods.map((period) => period.vehicleRegistration), ...trips.map((trip) => trip.vehicleRegistration)].filter(Boolean))];
   $("#vehicle-registrations").innerHTML = registrations.map((registration) => `<option value="${escapeAttribute(registration)}"></option>`).join("");
@@ -278,7 +336,7 @@ async function showApp(user, force = false) {
     const accepted = await ensurePrivacyAccepted();
     if (!accepted) return;
     $("#account-name").textContent = currentProfile?.full_name || user.user_metadata?.full_name || user.email;
-    await Promise.all([loadTrips(), loadSavedLocations(), loadLogbooks(), loadAnnualOdometerRecords()]);
+    await Promise.all([loadTrips(), loadSavedLocations(), loadVehicles(), loadLogbooks(), loadAnnualOdometerRecords()]);
     renderLogbooks();
     render();
     await migrateLocalTrips();
@@ -291,6 +349,10 @@ function showAuth() {
   currentProfile = null;
   trips = [];
   savedLocations = [];
+  vehicles = [];
+  renderVehicles();
+  resetVehicleEditor();
+  if (vehiclesDialog.open) vehiclesDialog.close();
   logbookPeriods = [];
   annualOdometerRecords = [];
   $("#auth-view").hidden = false;
@@ -443,6 +505,7 @@ function openForm(trip, duplicate = false) {
   $("#client-project").value = trip?.clientProject || "";
   $("#vehicle").value = trip?.vehicle || "";
   $("#vehicle-registration").value = trip?.vehicleRegistration || "";
+  renderVehicleChoices();
   $("#claim-method").value = trip?.claimMethod || (trip?.rateCents ? "employer" : "record_only");
   $("#rate-cents").value = trip?.rateCents || "";
   $("#odometer-start").value = duplicate ? "" : (trip?.odometerStart ?? "");
@@ -459,7 +522,7 @@ function openForm(trip, duplicate = false) {
   $("#trip-more-details").open = Boolean(trip) || normalizeRecordingMode(form.dataset.recordingMode) !== "general";
   const contextMessage = $("#trip-context-message");
   contextMessage.hidden = !duplicate;
-  contextMessage.textContent = duplicate ? `Trip details have been copied. The new trip uses today's local date, odometer readings have been left blank, and its copied distance is recorded as manually entered.${originalClassification === "unclassified" ? " Choose Work or Personal before saving." : ""}` : "";
+  contextMessage.textContent = duplicate ? `Trip details have been copied, including the recorded vehicle values (not today's saved profile). The new trip uses today's local date, odometer readings have been left blank, and its copied distance is recorded as manually entered.${originalClassification === "unclassified" ? " Choose Work or Personal before saving." : ""}` : "";
   dialog.showModal();
 }
 
@@ -789,6 +852,48 @@ $("#appearance-theme").addEventListener("change", async (event) => {
   message.textContent = "Appearance saved.";
 });
 $("#add-location").addEventListener("click", addSavedLocation);
+for (const selector of ["#manage-vehicles", "#trip-manage-vehicles"]) $(selector).addEventListener("click", async () => {
+  resetVehicleEditor();
+  vehiclesDialog.showModal();
+  try { await loadVehicles(); }
+  catch (error) { vehicleMessage(`Saved vehicles could not be refreshed: ${error.message}`, true); }
+});
+$("#close-vehicles").addEventListener("click", () => vehiclesDialog.close());
+$("#cancel-vehicle-edit").addEventListener("click", () => resetVehicleEditor());
+$("#vehicle-profile-form").addEventListener("submit", saveVehicleProfile);
+$("#vehicle-profile-form").addEventListener("input", (event) => event.target.removeAttribute("aria-invalid"));
+$("#saved-vehicle").addEventListener("change", () => {
+  const snapshot = vehicleSnapshot(vehicles.find((vehicle) => vehicle.id === $("#saved-vehicle").value));
+  if (!snapshot) return; // Manual selection keeps current values editable.
+  $("#vehicle").value = snapshot.vehicle;
+  $("#vehicle-registration").value = snapshot.vehicleRegistration;
+  clearTripFormMessage();
+});
+for (const selector of ["#vehicle", "#vehicle-registration"]) $(selector).addEventListener("input", () => { $("#saved-vehicle").value = ""; });
+$("#vehicle-list").addEventListener("click", async (event) => {
+  const id = event.target.dataset.editVehicle || event.target.dataset.archiveVehicle;
+  const vehicle = vehicles.find((item) => item.id === id);
+  if (!vehicle) return;
+  if (event.target.dataset.editVehicle) {
+    resetVehicleEditor();
+    $("#vehicle-profile-id").value = id;
+    $("#vehicle-profile-label").value = vehicle.label;
+    $("#vehicle-profile-registration").value = vehicle.registration;
+    $("#vehicle-editor-title").textContent = "Edit saved vehicle";
+    $("#vehicle-profile-label").focus();
+    return;
+  }
+  const controls = [...$("#vehicle-profile-form").querySelectorAll("button, input")];
+  controls.forEach((control) => { control.disabled = true; });
+  try {
+    const { data, error } = await db.from("vehicles").update({ archived: !vehicle.archived }).eq("id", id).select("id").single();
+    if (error || !data) throw error || new Error("The vehicle was not updated. Try again.");
+    await loadVehicles();
+    resetVehicleEditor();
+    vehicleMessage(`${vehicle.archived ? "Vehicle restored to trip choices." : "Vehicle archived from trip choices."} Existing trip and logbook records have not changed.`);
+  } catch (error) { vehicleMessage(`Vehicle could not be updated: ${error.message}`, true); }
+  finally { controls.forEach((control) => { control.disabled = false; }); }
+});
 $("#add-logbook").addEventListener("click", addLogbookPeriod);
 $("#add-annual-odometer").addEventListener("click", addAnnualOdometerRecord);
 $("#logbook-list").addEventListener("click", async (event) => {
@@ -813,7 +918,7 @@ $("#saved-location-list").addEventListener("click", async (event) => {
   if (error) return alert(`Location could not be removed: ${error.message}`);
   await loadSavedLocations();
 });
-$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${localCalendarDate()}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, logbook_periods: logbookPeriods, logbook_income_years: annualOdometerRecords, trips }));
+$("#download-data").addEventListener("click", () => downloadJson(`travel-log-data-${localCalendarDate()}.json`, { exported_at: new Date().toISOString(), profile: { account_id: currentUser.id, name: currentProfile?.full_name || currentUser.user_metadata?.full_name || null, email: currentUser.email, account_created_at: currentUser.created_at, appearance_theme: currentProfile?.appearance_theme || "system", recording_mode: activeRecordingMode(), privacy_version: currentProfile?.privacy_version || null, privacy_accepted_at: currentProfile?.privacy_accepted_at || null }, saved_locations: savedLocations, vehicles, logbook_periods: logbookPeriods, logbook_income_years: annualOdometerRecords, trips }));
 $("#delete-account").addEventListener("click", async () => {
   const password = $("#delete-password").value;
   if (!password) return alert("Enter your current password to confirm account deletion.");

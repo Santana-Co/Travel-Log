@@ -6,6 +6,7 @@
     "build:staging": "node scripts/build-staging.cjs",
     "test": "node --test && node --check app.js && node --check report.js && node --check logic.js && node --check theme.js",
     "test:browser": "playwright test",
+    "test:migration:vehicles": "node tests/migrations/vehicles.migration.cjs",
     "test:integration": "node --env-file-if-exists=.env.integration.local --test tests/integration/tenant-isolation.integration.cjs"
   },
   "devDependencies": {

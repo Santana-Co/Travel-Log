@@ -125,3 +125,16 @@ This model describes how the current recorded distance was established. It is no
 **Consequences:** schema version 5 is database-first. The additive defaults keep the deployed version-4 browser compatible while the database transitions; the version-5 browser must not deploy before migration and verification.
 
 **Evidence:** `supabase/distance-provenance-migration.sql`, `logic.js`, `app.js`, `report.js`, `tests/schema-contract.test.cjs`, `tests/browser/critical-flow.spec.cjs`.
+
+## ADR-013 — Saved vehicles supply values, not mutable historical identity
+
+**Date:** 2026-10-23
+**Status:** Accepted for Task #15 candidate; not deployed
+
+Store a small caller-owned `vehicles` table (label, registration, archive state, server timestamps). Copy values only on explicit selection into the existing trip vehicle/registration snapshots. Do not add a profile FK to trips or infer profiles from historical strings. Editing/duplicating uses recorded values even if a profile changed or was archived. No profile edit rewrites a trip or logbook; ATO matching remains based on recorded registration.
+
+Clients can create/edit/archive/restore their own profiles but not reassign identity/ownership or delete them. Auth-user deletion cascades. Full JSON includes archived profiles; CSV/print remain snapshot-based. Preferred/default vehicle selection is deferred.
+
+**Consequences:** additive schema 6 preserves the old trip-write contract and schema-5 browser compatibility. Candidate browser minimum 6 prevents access to a missing table. Database-first staging and production gates must precede frontend merge. This is convenience metadata, not immutable vehicle history or fleet management.
+
+**Evidence:** [design and release gate](../engineering/VEHICLE_PROFILES_RELEASE.md), `supabase/reusable-vehicles-migration.sql`, `tests/vehicles.test.cjs`, `tests/migrations/vehicles.migration.cjs`, `tests/browser/vehicles.spec.cjs`.

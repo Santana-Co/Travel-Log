@@ -9,6 +9,7 @@ const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const migration = fs.readFileSync(path.join(root, "supabase", "schema-version-migration.sql"), "utf8");
 const classificationMigration = fs.readFileSync(path.join(root, "supabase", "trip-classification-migration.sql"), "utf8");
 const distanceProvenanceMigration = fs.readFileSync(path.join(root, "supabase", "distance-provenance-migration.sql"), "utf8");
+const vehicleMigration = fs.readFileSync(path.join(root, "supabase", "reusable-vehicles-migration.sql"), "utf8");
 const reconciliationMigration = fs.readFileSync(
   path.join(root, "supabase", "production-schema-reconciliation-migration.sql"),
   "utf8",
@@ -17,20 +18,20 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "supabase", "migrati
 
 test("repository schema and browser minimum versions form a valid compatibility contract", () => {
   const browserVersion = app.match(/const requiredSchemaVersion = (\d+);/);
-  const databaseVersion = distanceProvenanceMigration.match(/values\s*\(\s*true\s*,\s*(\d+)\s*\)/i);
+  const databaseVersion = vehicleMigration.match(/values\s*\(\s*true\s*,\s*(\d+)\s*\)/i);
   assert.ok(browserVersion, "requiredSchemaVersion is missing from app.js");
   assert.ok(databaseVersion, "schema version is missing from the migration");
   const browserMinimum = Number(browserVersion[1]);
   const repositoryVersion = Number(databaseVersion[1]);
   const isValidContract = (minimumVersion) => minimumVersion <= repositoryVersion;
 
-  assert.equal(browserMinimum, 5);
+  assert.equal(browserMinimum, 6);
   assert.equal(repositoryVersion, manifest.schemaVersion);
   assert.ok(isValidContract(browserMinimum));
   assert.equal(isValidContract(repositoryVersion + 1), false);
 });
 
-test("browser enforces schema version 5 as a fail-closed minimum", async () => {
+test("browser enforces schema version 6 as a fail-closed minimum", async () => {
   const browserMinimum = Number(app.match(/const requiredSchemaVersion = (\d+);/)[1]);
   const compatibilitySource = app.slice(
     app.indexOf("async function ensureSchemaCompatible"),
@@ -50,8 +51,9 @@ test("browser enforces schema version 5 as a fail-closed minimum", async () => {
   };
 
   assert.equal((await check(4)).compatible, false);
-  assert.equal((await check(5)).compatible, true);
+  assert.equal((await check(5)).compatible, false);
   assert.equal((await check(6)).compatible, true);
+  assert.equal((await check(7)).compatible, true);
   assert.equal((await check(undefined)).compatible, false);
   assert.equal((await check("invalid")).compatible, false);
   assert.equal((await check(null, new Error("RPC unavailable"))).compatible, false);
@@ -92,7 +94,25 @@ test("every Supabase migration is included once in release order", () => {
   const files = fs.readdirSync(path.join(root, "supabase")).filter((name) => name.endsWith(".sql")).sort();
   assert.deepEqual([...manifest.releaseOrder].sort(), files);
   assert.equal(new Set(manifest.releaseOrder).size, manifest.releaseOrder.length);
-  assert.equal(manifest.releaseOrder.at(-1), "distance-provenance-migration.sql");
+  assert.equal(manifest.releaseOrder.at(-1), "reusable-vehicles-migration.sql");
+});
+
+test("vehicle migration adds a private convenience table without touching trip history", () => {
+  assert.match(vehicleMigration, /begin;/i);
+  assert.match(vehicleMigration, /pg_advisory_xact_lock/i);
+  assert.match(vehicleMigration, /is null or current_schema_version not in \(5, 6\)/i);
+  assert.match(vehicleMigration, /create table if not exists public\.vehicles/i);
+  assert.match(vehicleMigration, /references auth\.users\(id\) on delete cascade/i);
+  assert.match(vehicleMigration, /enable row level security/i);
+  assert.match(vehicleMigration, /revoke all on table public\.vehicles from public, anon, authenticated/i);
+  assert.match(vehicleMigration, /grant update \(label, registration, archived\)/i);
+  assert.match(vehicleMigration, /with check \(\(select auth\.uid\(\)\) = user_id\)/i);
+  assert.match(vehicleMigration, /vehicles_user_id_idx/i);
+  assert.match(vehicleMigration, /new\.updated_at := now\(\)/i);
+  assert.match(vehicleMigration, /values \(true, 6\)/i);
+  assert.doesNotMatch(vehicleMigration, /(?:update|alter table|delete from|insert into) public\.trips/i);
+  assert.doesNotMatch(vehicleMigration, /grant[^;]*delete[^;]*to authenticated/i);
+  assert.match(vehicleMigration, /commit;/i);
 });
 
 test("production reconciliation is fail-closed and preserves schema version 2", () => {

@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document describes the schema-v5 distance-provenance release candidate. Production and staging currently operate on version 4 until a separately approved database-first release; this document does not claim that version 5 is deployed. The routing Worker is separately maintained; only its checked-in client contract and repository operational guidance can be verified here.
+This document describes the schema-6 reusable-vehicle candidate. Production and staging remain on schema 5, with Task #14 deployed. Saved vehicles are not deployed; see the [release plan](VEHICLE_PROFILES_RELEASE.md). The routing Worker is separately maintained and unchanged by this task.
 
 ## System overview
 
@@ -64,7 +64,7 @@ sequenceDiagram
     end
 ```
 
-The repository release target and browser minimum are **5**. Deployed production and staging remain at **4** until release execution. `app.js` rejects only when the returned version is invalid or lower than the minimum; future versions greater than 5 remain accepted. Schema 5 must be applied and verified before this browser is deployed.
+The repository release target and candidate browser minimum are **6**. Deployed production/staging and browser minimum remain **5**. `app.js` rejects invalid versions or versions below the minimum; future higher versions remain accepted. Schema 6 must be applied and verified before this candidate browser is deployed.
 
 ## Conceptual data model
 
@@ -74,6 +74,7 @@ The repository release target and browser minimum are **5**. Deployed production
 | `profiles` | Name, privacy acceptance, theme, recording mode | `id` equals authenticated user ID |
 | `trips` | Intent classification, calendar dates, ordered route, distance and current provenance, purpose/project, claim/rate, vehicle/odometer, notes | `user_id`; classification and provenance are constrained; manual distance requires a reason; `stops` is canonical JSONB ordered string array |
 | `saved_locations` | Private label/address suggestions | `user_id` |
+| `vehicles` (candidate) | Reusable description/registration, archive state and server timestamps | `user_id`; no trip foreign key; selection copies historical snapshot fields |
 | `logbook_periods` | Representative vehicle logbook periods | `user_id` |
 | `logbook_income_years` | Annual odometer records | `user_id`; composite foreign key enforces same-owner logbook link |
 | `private.app_schema_state` | Current application schema version | No direct browser table access |
@@ -82,9 +83,11 @@ PostgreSQL constraints enforce important date ranges, odometer relationships, le
 
 ## Tenant ownership and RLS
 
-RLS is enabled on all five application-owned tables. Authenticated policies compare `auth.uid()` with `user_id` (or profile `id`) for the permitted CRUD operations; anonymous table privileges are revoked. Public RPC wrappers have narrow grants and call restricted private helpers where privileged execution is required.
+RLS is enabled on the five deployed application-owned tables and the candidate `vehicles` table. Authenticated policies compare `auth.uid()` with `user_id` (or profile `id`) for permitted operations; anonymous table privileges are revoked. Vehicles permit own SELECT/INSERT/UPDATE with restricted column grants; users archive instead of deleting, and Auth-account deletion cascades. Existing RLS/RPCs are unchanged. Public RPC wrappers have narrow grants and call restricted private helpers where privileged execution is required.
 
-The live staging integration suite uses two synthetic authenticated users and covers own/cross-user select, insert, update, ownership reassignment, delete, composite ownership, privacy acceptance, schema version, and account deletion. It previously completed 40 authenticated isolation subtests within 41 total passing integration tests with no successful cross-user access. The suite is opt-in and refuses the known production project.
+The live staging integration suite uses two synthetic authenticated users and covers own/cross-user select, insert, update, ownership reassignment, delete, composite ownership, privacy acceptance, schema version, and account deletion. It previously completed 40 authenticated isolation subtests within 41 total passing integration tests for the original five tables with no successful cross-user access. New vehicle cases await the schema-6 staging gate; disposable PostgreSQL tests cover their SQL/RLS locally. The live suite is opt-in and refuses the known production project.
+
+Saved vehicles are convenience data only: explicit selection copies label/registration into editable trip fields. Editing and duplication start from recorded trip values, without matching profile names or loading current profile values. Profile rename/archive never updates trips/logbooks. CSV, print and ATO/FY calculations continue reading the trip snapshot; full-account JSON also exports active and archived profiles. No default vehicle or historical inference is introduced.
 
 ## Trip lifecycle
 
@@ -154,13 +157,13 @@ Downloads and printed files leave Travel Log's control. Automated browser-level 
 
 The staging builder refuses production endpoints, privileged-looking credentials, non-HTTPS URLs, and missing configuration. A successful build or preview does not by itself prove the staging Worker is active; that remains an operational verification gap.
 
-`supabase/migrations.json` owns migration order. Production and staging are verified at schema 4. Schema 5 is additive and database-first: old schema-4 clients ignore the new defaulted columns, while the schema-5 browser must wait until each database is migrated. Production migration work follows preflight, recovery-point, encrypted connection, staging-first, post-migration verification, and synthetic-test discipline.
+`supabase/migrations.json` owns migration order. Production and staging are verified at schema 5. Candidate schema 6 adds only the private vehicles table and its policies/grants/trigger/index plus schema metadata. The schema-5 browser ignores the new table and retains its existing trip contract; the candidate browser requires schema 6. See the [database-first release and rollback gates](VEHICLE_PROFILES_RELEASE.md). No live migration is part of implementation.
 
 A private logical production backup was checksum-verified and restored to disposable PostgreSQL 17; application schema/data and reconciliation behaviour were validated. Recovery remains **PARTIALLY VERIFIED** because managed Supabase Auth, Storage, Vault, and related runtime were not fully reproduced. Restore-to-clean-database is preferred over an ambiguous in-place reverse migration.
 
 ## CI, dependencies, and trust boundaries
 
-- GitHub Actions runs `npm test` and the isolated Chromium critical-flow baseline with Node 24 for PRs and `main`.
+- GitHub Actions runs `npm test`, disposable vehicle migration/RLS checks and the isolated Chromium baseline with Node 24 for PRs and `main`.
 - CodeQL scans JavaScript on PRs, `main`, and weekly; Dependabot checks npm and Actions weekly.
 - The browser loads pinned `@supabase/supabase-js` 2.112.3 from jsDelivr with SRI.
 - External services are Supabase, GitHub Pages/Actions, Cloudflare Pages/Worker, the routing provider, Google Maps, and jsDelivr.

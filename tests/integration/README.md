@@ -38,6 +38,9 @@ Use `.env.integration.example` as a placeholder reference. Either export the rea
 | `saved_locations` | Yes | Yes | A and B | A and B | Yes | Yes | Yes | Yes | Yes |
 | `logbook_periods` | Yes | Yes | A and B | A and B | Yes | Yes | Yes | Yes | Yes |
 | `logbook_income_years` | Yes | Yes | A and B | A and B | Yes | Yes | Yes | Yes | Yes |
+| `vehicles` (schema 6) | A and B | A and B | A and B | A and B | Edit/archive | A and B | Owner and ID denied | Denied; archive instead | Denied |
+
+The vehicle cases require the schema-6 migration and are pending a separately approved staging gate. They have not been live-verified during Task #15. `npm run test:migration:vehicles` exercises the new SQL/RLS locally with synthetic roles in disposable PostgreSQL without live credentials.
 
 Additional checks:
 

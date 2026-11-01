@@ -8,6 +8,8 @@ The product sequence is **Build → Refine → Validate → Commercialise → Sc
 
 Stage 0 is complete: repository-owned documentation, tenant-isolation testing, schema reconciliation, account-deletion correction, schema-version alignment, local-date handling, recovery baselining, and an isolated browser critical-flow test are in place. The product is now in **Refine**; remaining foundation limitations stay tracked as technical debt rather than reopening Stage 0.
 
+**Task #15 checkpoint:** reusable vehicle profiles are implemented as a schema-6 candidate, not deployed. Add/edit/archive/restore and explicit trip selection copy description/registration into historical trip snapshots; no automatic inference, fleet features or default-vehicle preference. Local synthetic coverage precedes separate staging and production release gates. Task #14 FY reporting is complete; see [CURRENT_STATE.md](../project/CURRENT_STATE.md) for deployed truth where older stage descriptions below retain candidate wording.
+
 ## Stage 0 — Repository baseline and architecture
 
 **Goal:** make the implemented system, risks, commands, and decisions understandable and safely changeable.

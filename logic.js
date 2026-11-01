@@ -14,6 +14,16 @@
     "2026–27": 91,
   });
   function number(value) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
+  function validateVehicleProfile(profile) {
+    if (!String(profile.label || "").trim() || String(profile.label).length > 120) return "Enter a vehicle description of 1–120 characters.";
+    if (String(profile.registration || "").length > 20) return "Registration must be no more than 20 characters.";
+    return "";
+  }
+  function vehicleSnapshot(profile) {
+    // Explicit selection only. Never look up a profile while loading/editing a trip.
+    if (!profile || profile.archived || validateVehicleProfile(profile)) return null;
+    return { vehicle: profile.label.trim(), vehicleRegistration: String(profile.registration || "").trim().toUpperCase() };
+  }
   function localCalendarDate(date = new Date()) {
     // Calendar dates follow the user's device locale. They are not UTC timestamps.
     const year = date.getFullYear();
@@ -296,7 +306,7 @@
   }
 
   const api = { atoCentsRates, atoIncomeYear, atoIncomeYearStart, atoRateForDate, claimAmount, claimSummary, csvCell, distanceSourceLabel, duplicateDistanceEvidence, filterError, filterTrips, isWorkTrip, localCalendarDate, logbookAnnualSummary, logbookSummary, logbookValidityEnd, manualDistanceReasonLabel, normalizeDistanceSource, normalizeManualDistanceReason, normalizeRecordingMode, normalizeTripClassification, odometerDistance, recordingModeForTrip, totalDistance, tripCalendarDates, validateAnnualOdometerRecord, validateLogbookPeriod, validateTrip };
-  Object.assign(api, { financialYearRange, reportingPeriodLabel, reportingSummary });
+  Object.assign(api, { financialYearRange, reportingPeriodLabel, reportingSummary, validateVehicleProfile, vehicleSnapshot });
   root.TravelLogLogic = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(globalThis);

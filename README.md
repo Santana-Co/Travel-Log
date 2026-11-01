@@ -6,7 +6,7 @@ Travel Log is an Australian work-travel, compliance, and evidence web pilot. Sig
 
 The responsive static application is deployed from `main` through GitHub Pages. Browser JavaScript talks directly to Supabase Auth, PostgREST, and RPCs; PostgreSQL constraints and RLS enforce tenant ownership. A protected Cloudflare Worker mediates route-distance requests to an external routing provider.
 
-Application schema and browser minimum are **5**. The accepted Task #13 release established schema 5 in production and staging; see the dated [project handover](docs/project/CURRENT_STATE.md) for current context. Startup accepts the minimum version or higher and fails safely on missing, invalid, errored, or older versions. Task #14 reporting changes require no migration or compatibility change.
+Deployed application schema and browser minimum remain **5**. This Task #15 candidate targets schema/browser minimum **6** for saved vehicles; it is not deployed and must not merge before its database-first release gates. See the [vehicle release plan](docs/engineering/VEHICLE_PROFILES_RELEASE.md) and dated [project handover](docs/project/CURRENT_STATE.md). Startup accepts the minimum version or higher and fails safely on missing, invalid, errored, or older versions.
 
 Live staging tests have verified two-user tenant isolation across the five private application tables and relevant RPCs. Production schema drift, account deletion, and local calendar-date handling have been corrected and verified. A logical backup and disposable PostgreSQL restore validated application schema/data recovery, but full managed Supabase recovery remains **PARTIALLY VERIFIED**.
 
@@ -16,6 +16,7 @@ Live staging tests have verified two-user tenant isolation across the five priva
 - Streamlined trip creation plus explicit Work/Personal intent, readable journey summaries, progressively revealed record details, inline recovery, editing, duplication, deletion, multiple ordered stops, round trips, search, and classification/date/client filters
 - Protected driving-distance calculation plus manual distance entry, persisted current-source evidence, and Google Maps route links
 - Saved locations and per-trip vehicle/registration details
+- Candidate: reusable saved vehicles with add/edit/archive/restore. Explicit selection copies trip snapshots; profile changes never rewrite history. Manage them in Account or the trip's More details section. Manual entry remains available; no default or historical inference.
 - Employer/general, ATO cents-per-kilometre, and representative-logbook/odometer recording modes
 - Australian financial-year rates, caps, logbook estimates, filtered CSV, JSON account export, and printable reports
 - Cross-device appearance and recording-mode preferences
@@ -28,7 +29,7 @@ Choose **All dates**, an Australian **FY (1 July–30 June)**, or **Custom dates
 
 Dashboard, CSV and print share the same reporting calculations. CSV retains provenance/manual evidence and adds a contribution column that sums to the displayed monetary total after caps and rounding. Caps apply per car/year within the selected records, not as a statement of remaining annual entitlement. Work does not establish eligibility. Annual logbook estimates use supported full-year odometer records and their complete representative logbooks; partial-year or unrelated filters show an explanation instead of an allocated trip amount. Print includes the annual summary; CSV remains trip-level.
 
-**Download my data** remains the complete JSON account export, unaffected by reporting filters. Filtered JSON reporting is future work, not part of Task #14. These reporting changes are pending review/deployment until their PR is merged.
+**Download my data** remains the complete JSON account export, unaffected by reporting filters; the Task #15 candidate also includes saved vehicles, including archived ones. Filtered JSON reporting is future work. Task #14 reporting is deployed and complete.
 
 ## Repository map
 
@@ -75,7 +76,15 @@ npm run test:browser
 
 These tests load the real application assets with deterministic synthetic Auth, schema, profile, trip, logbook, and routing responses. They cover the essential-first trip form at desktop and mobile widths, classification and filtering, distance provenance, validation recovery, CRUD/duplication, local dates, CSV/JSON/print output, and schema compatibility. Reporting coverage includes FY boundaries, combined filters, capped contributions, annual logbooks, empty states and 390 × 844 layouts; its context-wide network guard also covers print popups. They block unexpected non-loopback requests and never require or contact production or staging. The fast `npm test` command remains separate; CI requires both commands.
 
-The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration:
+Run the vehicle migration/ownership tests without live credentials (PostgreSQL server tools required; optionally set `PG_BINDIR` to their bin directory):
+
+```sh
+npm run test:migration:vehicles
+```
+
+This creates, tests and removes a private disposable Unix-socket-only cluster with synthetic users/data. It never reads live database configuration. App checks also run this gate. See the [release plan](docs/engineering/VEHICLE_PROFILES_RELEASE.md) for coverage and limitations.
+
+The live Supabase tenant-isolation suite is separate and requires explicit non-production configuration. Its new vehicle cases require schema 6 and remain pending the approved staging gate:
 
 ```sh
 npm run test:integration
