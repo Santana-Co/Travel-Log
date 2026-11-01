@@ -1,17 +1,17 @@
 # Travel Log — Current State
 
-Consolidated starting context, not a session log. Updated **24 October 2026** for the Task #15 candidate, based on clean `main` `5d8420e9bd6db96ab54eb04c9b3e158ce4679365`. Deployed product baseline remains PR #23, merge `daa1655129dc42d07c9815b15c2ae31205ca9383`. Task #15 is not deployed; no new live environment checks or changes occurred.
+Consolidated starting context, not a session log. Updated **1 November 2026** after the Task #15C frontend deployment. PR #24 merged as `f0b98b5f36a4946d8b4622a8b831ba47ebfb5994`; production and staging databases and the deployed frontend minimum are schema 6. Final authenticated production UI verification remains blocked by unavailable browser control.
 
 ## Current checkpoint
 
 - Last completed product task: **Task #14 — Financial-Year Reporting UX**, including deployment and the user's authenticated read-only production smoke.
 - Stage 0: **COMPLETE**. Current phase: **Refine**.
-- Production/staging application schema and deployed browser minimum: **5**. Task #15 candidate repository schema/browser minimum: **6**, not released.
-- Last merged material product PR: **#23**, merge `daa1655129dc42d07c9815b15c2ae31205ca9383`.
+- Production/staging application schema and deployed browser minimum: **6**. PR #24 frontend is deployed; final UI verification remains pending.
+- Last merged material product PR: **#24**, merge `f0b98b5f36a4946d8b4622a8b831ba47ebfb5994`.
 - Handover task **#13C** merged as PR #21; merged-main App checks, CodeQL and Pages passed.
-- Current task: **#15 — Reusable Vehicle Profiles**, implemented on `codex/reusable-vehicle-profiles`, pending PR/release gates; **not COMPLETE or deployed**. Task #14 remains COMPLETE.
-- Next action: review the candidate and approve a schema-6 staging release-validation gate. Do not merge/deploy the frontend before production schema 6 is verified. No later task is authorised.
-- Active Task #15 release gates: schema-6 staging migration/live isolation/preview, then separately approved production verification before frontend merge. Recovery remains **PARTIALLY VERIFIED**; staging deployment safeguard [issue #20](https://github.com/Santana-Co/Travel-Log/issues/20) is separate operational work.
+- Current task: **#15 — Reusable Vehicle Profiles**, deployed but **INCOMPLETE**. Task #15A staging and **Task #15B production verification are COMPLETE**. Task #15C is paused at the authenticated deployed-UI smoke. Task #14 remains COMPLETE.
+- Next action: resume only Task #15C authenticated production vehicle/trip/reporting/mobile verification once browser control is available, then exact cleanup and final closure. Do not repeat migration, backup or Task #15A/#15B; do not begin Task #16.
+- Task #15B: accepted manual deployed-frontend compatibility smoke plus normal authenticated synthetic trip CRUD/duplicate-equivalent compatibility and A/B vehicle ownership checks passed. Exact cleanup confirmed zero artifacts across Auth and all six application tables; the temporary local credential file was removed. Genuine user data was not modified. Recovery remains **PARTIALLY VERIFIED**; staging deployment safeguard [issue #20](https://github.com/Santana-Co/Travel-Log/issues/20) is separate operational work.
 
 ## Product and deployed capabilities
 
@@ -28,11 +28,11 @@ Travel Log is an Australian work-travel, compliance and evidence web pilot. Stra
 
 Static HTML/CSS/JavaScript on GitHub Pages; no application server or framework. `app.js` orchestrates browser workflows and exports, `logic.js` owns reusable calculations/validation, and `report.js` renders print output. Supabase supplies Auth, PostgreSQL, PostgREST and RPCs. A separately maintained authenticated Cloudflare Worker calculates routes. Staging/previews use separate configured services.
 
-Five private application tables: `profiles`, `trips`, `saved_locations`, `logbook_periods`, `logbook_income_years`. Supabase RLS and caller ownership—not browser filtering—form the tenant security boundary. Privileged credentials never belong in browser code or fixtures.
+Six private application tables: `profiles`, `trips`, `saved_locations`, `logbook_periods`, `logbook_income_years`, `vehicles`. Supabase RLS and caller ownership—not browser filtering—form the tenant security boundary. Privileged credentials never belong in browser code or fixtures.
 
-Task #15 adds candidate private table `vehicles` with description, optional registration, archive state and server timestamps. No trip FK: explicit selection copies existing historical snapshot fields. Profile edits never rewrite trips/logbooks; duplicate/edit keeps recorded values. Full JSON includes active/archived profiles; CSV/print/FY/ATO calculations keep reading trip snapshots.
+Task #15 adds the now-deployed private table `vehicles` with description, optional registration, archive state and server timestamps. Its frontend is deployed; final production UI verification is pending. No trip FK: explicit selection copies existing historical snapshot fields. Profile edits never rewrite trips/logbooks; duplicate/edit keeps recorded values. Full JSON includes active/archived profiles; CSV/print/FY/ATO calculations keep reading trip snapshots.
 
-Startup calls `get_app_schema_version()`. The deployed browser accepts integer versions **>= 5**; the candidate minimum is **6**. Missing/invalid/error/older responses block normal loading before vehicle/profile/trip reads. Repository schema and browser minimum are separate concepts. Deployment details belong in [RELEASE_STATE.md](RELEASE_STATE.md).
+Startup calls `get_app_schema_version()`. The deployed browser accepts integer versions **>= 6**. Missing/invalid/error/older responses block normal loading before vehicle/profile/trip reads. Repository schema and browser minimum are separate concepts. Deployment details belong in [RELEASE_STATE.md](RELEASE_STATE.md).
 
 ## Product/data invariants
 
@@ -48,12 +48,18 @@ Startup calls `get_app_schema_version()`. The deployed browser accepts integer v
 
 ## Meaningful test baseline
 
-- Task #15 candidate local gate: **44 unit/static passed**, **15 browser passed**, **44 disposable PostgreSQL migration/RLS assertions passed**; syntax, documentation links and diff checks passed. No live integration suite was run. These candidate results do not replace the deployed/live baseline below.
+- Task #15 candidate local gate: **44 unit/static passed**, **15 browser passed**, **44 disposable PostgreSQL migration/RLS assertions passed**; syntax, documentation links and diff checks passed. Subsequent accepted staging gate: **47/47 integration tests passed**. Task #15B's narrow production runner passed **83 assertions**, using exactly two normal authenticated synthetic users; admin credentials were restricted to provisioning/cleanup. Tests were not rerun for this documentation checkpoint.
 
 - `npm test`: credential-free domain/date/classification/provenance/reporting rules, schema contracts, static assets, staging-build guards and syntax checks; deployed Task #14 baseline **40 passed**.
 - `npm run test:browser`: real local assets with deterministic synthetic backend boundaries; startup/compatibility, CRUD/duplication, dates, classification, provenance and CSV/JSON/print, including FY reconciliation and representative mobile checks. Deployed Task #14 baseline **11 passed**; non-loopback service access is blocked/mocked, not live verification.
 - `npm run test:integration`: explicitly configured staging-only two-user ownership/RPC suite; prior release baseline **41 passed**, no cross-user access. Never run it against production.
 - PR #23 checks, including Cloudflare preview, passed; merged-main App checks/browser step, CodeQL and Pages passed. These are recorded results, not instructions to rerun them for ordinary documentation work.
+
+## Task #15C — deployed, final verification PAUSED
+
+PR #24 passed the exact-head integrity gate with one approved commit and 25 files; App checks, CodeQL and Cloudflare were green. It merged unchanged using a merge commit. Merged-main App checks, CodeQL, GitHub Pages and Cloudflare passed; public HTML/app assets returned HTTP 200 and deployed `app.js` matched merged main byte-for-byte with minimum schema 6. These are deployment checks, not an authenticated browser smoke.
+
+Chrome automation timed out and native browser access also timed out. Vehicle management, trip selection/snapshot/duplication, historical rendering, reporting/export and mobile UI verification remain pending. No Task #15C synthetic users or records were created; genuine data was untouched; the temporary production Auth credential remains absent. Do not claim Task #15C or Task #15 COMPLETE.
 
 ## Task #14 — COMPLETE and deployed
 
@@ -66,11 +72,11 @@ Startup calls `get_app_schema_version()`. The deployed browser accepts integer v
 
 ## Refine backlog and operational risks
 
-Task #15 candidate: saved-vehicle management and trip selection; manual entry retained; no historical inference or default preference; own-user RLS and restricted column grants; archive rather than direct deletion. Local disposable PostgreSQL and synthetic desktop/mobile browser coverage accompany the [release plan](../engineering/VEHICLE_PROFILES_RELEASE.md). Live six-table tenant isolation is still pending; the accepted 41-test live baseline covers the original five tables only.
+Task #15 implementation: saved-vehicle management and trip selection; manual entry retained; no historical inference or default preference; own-user RLS and restricted column grants; archive rather than direct deletion. Local disposable PostgreSQL and synthetic desktop/mobile browser coverage accompany the [release plan](../engineering/VEHICLE_PROFILES_RELEASE.md). Six-table staging isolation and narrow production vehicle isolation have passed; frontend is deployed and final production UI verification remains pending.
 
 Completed: first-trip simplification (#14 PR), trip clarity/evidence presentation (#15 PR), classification (Task #12 / PR #16), persisted provenance/manual evidence (Task #13 / PR #17), financial-year reporting (Task #14 / PR #23). Task numbers and PR numbers are distinct.
 
-Current priority: complete Task #15's review and separately approved release gates. Later possibilities remain immutable corrections/audit history and focused onboarding/accessibility/mobile polish; none is authorised by Task #15.
+Current priority: finish Task #15C authenticated deployed-UI, reporting/export and mobile smoke, exact cleanup and final checkpoint. Task #15 remains incomplete until those gates pass. Later possibilities remain immutable corrections/audit history and focused onboarding/accessibility/mobile polish; none is authorised by Task #15.
 
 Operational risks: **PARTIALLY VERIFIED** recovery (application restore exercised, complete managed Auth/Storage/Vault runtime not reproduced); staging Worker deployment guard [#20](https://github.com/Santana-Co/Travel-Log/issues/20); production Auth/signup diagnostics; missing central monitoring/health checks; incomplete rule-source/version metadata. Do not fold them into unrelated product work.
 

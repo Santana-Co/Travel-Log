@@ -2,6 +2,16 @@
 
 Newest first. Significant completed work only, not a commit/session diary. Read only the relevant entry when history is needed; [CURRENT_STATE.md](CURRENT_STATE.md) is the consolidated handover and [RELEASE_STATE.md](RELEASE_STATE.md) is the operational snapshot.
 
+## Task #15C — Frontend deployed; verification pending (1 November 2026)
+
+PR #24 merged unchanged as `f0b98b5f36a4946d8b4622a8b831ba47ebfb5994`. App checks, CodeQL, GitHub Pages and Cloudflare passed; public deployed `app.js` matches the merge and requires schema 6. Production/staging databases were already schema 6; no migration was rerun. Authenticated vehicle/trip/reporting/mobile verification is paused because Chrome automation and native browser access timed out. No synthetic artifacts were created or genuine data modified. Task #15 remains INCOMPLETE.
+
+## Task #15B — Production verification COMPLETE (1 November 2026)
+
+Accepted Task #15A staging and production schema-6 migration/recovery gates were retained without rerunning them. The final production Auth gate passed: exactly two synthetic users authenticated normally; 83 scoped assertions covered profiles, schema-5 trip CRUD/duplicate-equivalent compatibility and schema-6 vehicle ownership/protected fields/archive/restore. Exact cleanup confirmed zero synthetic artifacts across Auth and all six application tables. The temporary local credential copy was removed; genuine user data was not modified. Manual deployed-frontend compatibility smoke had already passed.
+
+At the Task #15B gate, PR #24 was frozen at `2cb95fcfa6d2def7e2bc47231cb99116589e411c`, open and unmerged; production/staging databases were schema 6 and production frontend minimum was 5. Task #15B returned GO for Task #15C, without declaring Task #15 COMPLETE. Recovery remains PARTIALLY VERIFIED.
+
 ## Task #15 — Reusable vehicles (implementation candidate, 24 October 2026; release pending)
 
 Implemented caller-owned saved vehicles with add/edit/archive/restore and explicit trip snapshot copying. No historical inference or mutable trip/profile link; edit/duplication preserves recorded vehicle values and existing date/provenance/odometer rules. CSV/print/ATO/FY remain snapshot-based; full JSON includes saved vehicles. Schema/browser target 6 is additive and database-first; deployed environments remain 5. Disposable SQL/RLS and isolated browser regressions accompany the candidate. Extended live vehicle isolation and all live release gates remain pending. Task #15 is not COMPLETE; no later task started.
