@@ -2,6 +2,10 @@
 
 Newest first. Significant completed work only, not a commit/session diary. Read only the relevant entry when history is needed; [CURRENT_STATE.md](CURRENT_STATE.md) is the consolidated handover and [RELEASE_STATE.md](RELEASE_STATE.md) is the operational snapshot.
 
+## Task #15 — Reusable Vehicle Profiles COMPLETE (2 November 2026)
+
+Task #15A/#15B/#15C are complete. PR #24 merged as `f0b98b5f36a4946d8b4622a8b831ba47ebfb5994`; production/staging schema and deployed frontend minimum are 6. App checks, CodeQL and Pages passed; the checkpoint Pages overlap was resolved. The user confirmed all 12 final manual production checks PASS, including vehicle/trip snapshot semantics, historical behaviour, classification/provenance, FY/ATO, CSV/print/JSON and mobile. Cleanup COMPLETE and no remaining test records were user-confirmed, with no unusual behaviour or edits to genuine historical trips. This manual evidence complements Task #15B's independently verified exact cleanup; no new production query or automated browser run was performed for closure. Temporary Auth credentials remain absent. Recovery remains PARTIALLY VERIFIED. Task #16 not started.
+
 ## Task #15C — Frontend deployed; verification pending (1 November 2026)
 
 PR #24 merged unchanged as `f0b98b5f36a4946d8b4622a8b831ba47ebfb5994`. App checks, CodeQL, GitHub Pages and Cloudflare passed; public deployed `app.js` matches the merge and requires schema 6. Production/staging databases were already schema 6; no migration was rerun. Authenticated vehicle/trip/reporting/mobile verification is paused because Chrome automation and native browser access timed out. No synthetic artifacts were created or genuine data modified. Task #15 remains INCOMPLETE.
